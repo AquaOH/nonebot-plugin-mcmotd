@@ -41,6 +41,11 @@ MC_MOTD_TITLE="Minecraft 服务器状态"
 
 # 数据库路径
 MC_MOTD_DB_PATH="data/minecraft_servers.db"
+
+# 自定义字体设置（字体文件需放在 data/fonts/ 目录下）
+# 只需填写字体文件名，不含扩展名
+# 例如：字体文件为 MyFont.ttf，则配置为 MC_MOTD_CUSTOM_FONT=MyFont
+MC_MOTD_CUSTOM_FONT=MyFont
 ```
 
 ## 使用

@@ -2,6 +2,7 @@ import asyncio
 import base64
 import platform
 import re
+import os
 from io import BytesIO
 from typing import List, Optional, Tuple
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -58,9 +59,6 @@ class ServerListDrawer:
 
     def _init_fonts(self):
         try:
-            system = platform.system()
-            logger.info(f"检测到操作系统: {system}")
-
             # 定义不同字体大小
             font_sizes = {
                 'title': 32,
@@ -69,6 +67,43 @@ class ServerListDrawer:
                 'small': 15,
                 'tiny': 13
             }
+
+            # 优先使用自定义字体
+            custom_font_name = plugin_config.mc_motd_custom_font.strip()
+            if custom_font_name:
+                # 支持多种扩展名
+                font_extensions = ['.ttf', '.otf', '.ttc']
+                custom_font_path = None
+                
+                for ext in font_extensions:
+                    test_path = f"data/fonts/{custom_font_name}{ext}"
+                    if os.path.exists(test_path):
+                        custom_font_path = test_path
+                        break
+                
+                if custom_font_path:
+                    try:
+                        # 测试字体是否可以正常加载
+                        test_font = ImageFont.truetype(custom_font_path, font_sizes['medium'])
+                        
+                        # 如果测试成功，为所有尺寸创建字体
+                        self.fonts = {}
+                        for size_name, size in font_sizes.items():
+                            self.fonts[size_name] = ImageFont.truetype(custom_font_path, size)
+                        
+                        logger.success(f"成功加载自定义字体: {custom_font_path}")
+                        return
+                        
+                    except Exception as e:
+                        logger.error(f"自定义字体加载失败: {e}")
+                else:
+                    logger.warning(f"自定义字体文件不存在: data/fonts/{custom_font_name}[.ttf/.otf/.ttc]")
+
+            # 使用系统字体作为备用
+            logger.info("使用系统字体")
+            
+            system = platform.system()
+            logger.info(f"检测到操作系统: {system}")
 
             # 根据操作系统选择字体
             fonts_to_try = []
@@ -109,7 +144,7 @@ class ServerListDrawer:
                     for size_name, size in font_sizes.items():
                         self.fonts[size_name] = ImageFont.truetype(font_path, size)
 
-                    logger.success(f"成功加载字体: {font_path}")
+                    logger.success(f"成功加载系统字体: {font_path}")
                     font_loaded = True
                     break
 
@@ -131,7 +166,7 @@ class ServerListDrawer:
             return ""
 
         # 移除emoji和其他Unicode符号，保留基本的ASCII字符、中文字符和常用标点
-        cleaned = re.sub(r'[^\u4e00-\u9fff\u3400-\u4dbf\w\s\.\-_:\/\[\]()（）【】，。、！？""'']+', '', text)
+        cleaned = re.sub(r'[^\u4e00-\u9fff\u3400-\u4dbf\w\s\.\-_:\/\[\]()（）、，。！？""'']+', '', text)
         
         # 清理多余的空格
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()

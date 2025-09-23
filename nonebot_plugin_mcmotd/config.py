@@ -14,6 +14,7 @@ class Config(BaseModel):
     mc_motd_allowed_groups: List[str] = [] 
     mc_motd_allow_private: bool = True      
     mc_motd_title: str = "Minecraft 服务器状态"
+    mc_motd_custom_font: str = ""  # 自定义字体文件名（放在data/fonts目录下，只需文件名不含扩展名）
     
     @field_validator("mc_motd_timeout")
     @classmethod
