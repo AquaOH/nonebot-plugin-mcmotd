@@ -76,7 +76,7 @@ MC_MOTD_CUSTOM_FONT=MyFont
 
 ### 图片示例
 
-![image-20250924030221190](https://aquaoh.oss-cn-shanghai.aliyuncs.com/post/20250924030221288.png)
+![image-20250924031218846](https://aquaoh.oss-cn-shanghai.aliyuncs.com/post/20250924031218957.png)
 
 ## 注意事项
 
