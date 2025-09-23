@@ -165,7 +165,6 @@ async def handle_query_logic(event: Event, show_detail: bool):
         if image_bytes:
             # 发送图片
             image_msg = MessageSegment.image(image_bytes)
-            await manage_matcher.send(image_msg)
             
             # 检查是否有假人过滤信息需要显示
             if plugin_config.mc_motd_filter_bots:
@@ -177,11 +176,15 @@ async def handle_query_logic(event: Event, show_detail: bool):
                             bot_filtered_servers.append(f"{status.tag}过滤了{bot_count}个假人")
                 
                 if bot_filtered_servers:
+                    # 如果有假人过滤信息，一起发送
                     bot_message = "\n".join(bot_filtered_servers)
-                    await manage_matcher.finish(bot_message)
-            
-            # 如果没有假人过滤信息，直接结束
-            await manage_matcher.finish("")
+                    await manage_matcher.finish([image_msg, MessageSegment.text("\n" + bot_message)])
+                else:
+                    # 没有假人过滤信息，只发送图片
+                    await manage_matcher.finish(image_msg)
+            else:
+                # 未启用假人过滤，只发送图片
+                await manage_matcher.finish(image_msg)
         else:
             # 如果图片生成失败，显示错误信息
             logger.error("图片生成失败")

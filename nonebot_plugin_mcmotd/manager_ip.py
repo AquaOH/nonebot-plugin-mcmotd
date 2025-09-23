@@ -157,50 +157,6 @@ class ServerManager:
             logger.error(f"查询服务器失败：{e}")
             return None
 
-    async def get_server_count(self) -> int:
-        try:
-            await self.init_database()
-
-            async with aiosqlite.connect(self.db_path) as db:
-                async with db.execute("SELECT COUNT(*) FROM minecraft_servers") as cursor:
-                    row = await cursor.fetchone()
-                    return row[0] if row else 0
-
-        except Exception as e:
-            logger.error(f"获取服务器数量失败：{e}")
-            return 0
-
-    async def update_server_tag(self, ip_port: str, new_tag: str) -> tuple[bool, str]:
-        try:
-            await self.init_database()
-
-            async with aiosqlite.connect(self.db_path) as db:
-                # 查找服务器
-                async with db.execute(
-                        "SELECT tag FROM minecraft_servers WHERE ip_port = ?",
-                        (ip_port,)
-                ) as cursor:
-                    existing = await cursor.fetchone()
-
-                if not existing:
-                    return False, f"服务器 {ip_port} 不存在"
-
-                old_tag = existing[0]
-
-                # 更新标签
-                await db.execute(
-                    "UPDATE minecraft_servers SET tag = ? WHERE ip_port = ?",
-                    (new_tag, ip_port)
-                )
-                await db.commit()
-
-                logger.info(f"成功更新服务器标签：{ip_port} - {old_tag} -> {new_tag}")
-                return True, f"成功更新服务器标签：{old_tag} -> {new_tag}"
-
-        except Exception as e:
-            logger.error(f"更新服务器标签失败：{e}")
-            return False, f"更新服务器标签失败：{str(e)}"
-
 
 # 创建管理器实例
 server_manager = ServerManager()
@@ -225,11 +181,3 @@ async def get_all_servers() -> List[MinecraftServer]:
 
 async def get_server_by_ip(ip_port: str) -> Optional[MinecraftServer]:
     return await server_manager.get_server_by_ip(ip_port)
-
-
-async def get_server_count() -> int:
-    return await server_manager.get_server_count()
-
-
-async def update_server_tag(ip_port: str, new_tag: str) -> tuple[bool, str]:
-    return await server_manager.update_server_tag(ip_port, new_tag)
