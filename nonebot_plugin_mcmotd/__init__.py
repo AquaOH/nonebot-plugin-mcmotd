@@ -4,7 +4,7 @@ NoneBot Minecraft MOTD 插件
 用于查询 Minecraft 服务器状态并生成状态图片
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 from nonebot.plugin import PluginMetadata, inherit_supported_adapters
 
@@ -27,7 +27,7 @@ __plugin_meta__ = PluginMetadata(
     type="application",
     homepage="https://github.com/yourusername/nonebot-plugin-mcmotd",
     config=Config,
-    supported_adapters=inherit_supported_adapters("nonebot.adapters.onebot.v11"),
+    supported_adapters={"~onebot.v11"},
     extra={
         "version": __version__,
         "author": "Your Name",
