@@ -16,6 +16,7 @@ MC_MOTD_SUPERUSERS=["123456789", "987654321"]
 ```
 
 ### 可选配置
+以下展示默认值，不填则为为该值
 
 ```env
 # 允许私聊使用插件
@@ -68,7 +69,14 @@ MC_MOTD_CUSTOM_FONT=MyFont
 /motd add hypixel.net Hypixel服务器
 /motd add play.example.com:25566 我的服务器
 /motd del hypixel.net
+/motd --detail
 ```
+
+
+
+### 图片示例
+
+![image-20250924030221190](https://aquaoh.oss-cn-shanghai.aliyuncs.com/post/20250924030221288.png)
 
 ## 注意事项
 
