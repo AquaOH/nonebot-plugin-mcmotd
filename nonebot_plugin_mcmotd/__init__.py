@@ -25,7 +25,7 @@ __plugin_meta__ = PluginMetadata(
         "需要在.env文件中配置超级管理员QQ号才能使用管理功能"
     ),
     type="application",
-    homepage="https://github.com/yourusername/nonebot-plugin-mcmotd",
+    homepage="https://github.com/AquaOH/nonebot-plugin-mcmotd",
     config=Config,
     supported_adapters={"~onebot.v11"},
     extra={
