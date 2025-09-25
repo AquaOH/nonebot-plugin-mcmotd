@@ -19,6 +19,8 @@ class Config(BaseModel):
     mc_motd_group_admin_permission: bool = True  # 新增：群管理员权限配置
     mc_motd_title: str = "Minecraft 服务器状态"
     mc_motd_custom_font: str = ""  # 自定义字体完整路径
+    mc_motd_enable_compression: bool = True  # 新增：启用图片压缩功能
+    mc_motd_compression_quality: int = Field(default=50, ge=1, le=100)  # 新增：压缩质量(1-100)
 
 # 获取配置实例并导出
 plugin_config = get_plugin_config(Config)

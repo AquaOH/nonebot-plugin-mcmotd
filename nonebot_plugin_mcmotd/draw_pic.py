@@ -148,6 +148,49 @@ class ServerListDrawer:
             default_font = ImageFont.load_default()
             self.fonts = {name: default_font for name in ['title', 'large', 'medium', 'small', 'tiny']}
 
+    def compress_image(self, image: Image.Image) -> bytes:
+        """压缩图片为WebP格式"""
+        try:
+            if not plugin_config.mc_motd_enable_compression:
+                # 未启用压缩，保持原PNG格式
+                buffer = BytesIO()
+                image.save(buffer, format='PNG', quality=95, optimize=True)
+                image_bytes = buffer.getvalue()
+                buffer.close()
+                return image_bytes
+            
+            # 启用压缩，转换为WebP格式
+            buffer = BytesIO()
+            quality = plugin_config.mc_motd_compression_quality
+            
+            # 确保质量值在有效范围内
+            quality = max(1, min(100, quality))
+            
+            image.save(buffer, format='WebP', quality=quality, optimize=True)
+            compressed_bytes = buffer.getvalue()
+            buffer.close()
+            
+            # 计算压缩比
+            original_buffer = BytesIO()
+            image.save(original_buffer, format='PNG', quality=95, optimize=True)
+            original_size = len(original_buffer.getvalue())
+            compressed_size = len(compressed_bytes)
+            compression_ratio = (1 - compressed_size / original_size) * 100
+            
+            logger.info(f"图片压缩完成: PNG {original_size} bytes → WebP {compressed_size} bytes "
+                       f"(压缩比: {compression_ratio:.1f}%, 质量: {quality}%)")
+            
+            return compressed_bytes
+            
+        except Exception as e:
+            logger.error(f"图片压缩失败，回退到PNG格式: {e}")
+            # 压缩失败时回退到原始PNG格式
+            buffer = BytesIO()
+            image.save(buffer, format='PNG', quality=95, optimize=True)
+            image_bytes = buffer.getvalue()
+            buffer.close()
+            return image_bytes
+
     def clean_text_for_display(self, text: str) -> str:
         if not text:
             return ""
@@ -530,9 +573,8 @@ class ServerListDrawer:
             self.safe_text_draw(draw, (self.width // 2 - 120, height // 2 + 10), "Use /motd add ip:port tag",
                                 self.fonts['medium'], self.colors['secondary_text'])
 
-        buffer = BytesIO()
-        image.save(buffer, format='PNG', quality=95)
-        return buffer.getvalue()
+        # 使用压缩方法处理图片
+        return self.compress_image(image)
 
     async def draw_server_list(self, server_statuses: List[ServerStatus], show_detail: bool = False) -> Optional[bytes]:
         try:
@@ -578,14 +620,12 @@ class ServerListDrawer:
             # 绘制底部
             self.draw_footer(draw, current_y + self.margin - self.item_spacing)
 
-            # 转换为字节数据
-            buffer = BytesIO()
-            image.save(buffer, format='PNG', quality=95, optimize=True)
-            image_bytes = buffer.getvalue()
-            buffer.close()
+            # 使用压缩方法转换为字节数据
+            image_bytes = self.compress_image(image)
 
             mode_text = "详细模式" if show_detail else "普通模式"
-            logger.success(f"成功生成服务器列表图片（{mode_text}），大小: {len(image_bytes)} bytes")
+            format_text = "WebP" if plugin_config.mc_motd_enable_compression else "PNG"
+            logger.success(f"成功生成服务器列表图片（{mode_text}，{format_text}格式），大小: {len(image_bytes)} bytes")
             return image_bytes
 
         except Exception as e:
