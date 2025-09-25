@@ -10,10 +10,8 @@ from nonebot import logger
 from .get_motd import ServerStatus, get_summary_stats
 from .config import plugin_config
 
-
 class ServerListDrawer:
     def __init__(self):
-        # 基础配置 - 从配置文件读取
         self.width = plugin_config.mc_motd_image_width
         self.margin = plugin_config.mc_motd_margin
         self.item_height = plugin_config.mc_motd_item_height
@@ -21,12 +19,9 @@ class ServerListDrawer:
         self.footer_height = 60
         self.corner_radius = 16
         self.shadow_offset = 4
-        
-        # 项目间距配置
         self.item_spacing = 20
         self.detail_extra_height = 80
 
-        # 颜色配置 - 深色主题
         self.colors = {
             'background': '#0d1117',
             'background_secondary': '#161b22',
@@ -51,12 +46,10 @@ class ServerListDrawer:
             'bot_accent': '#fd7e14',
         }
 
-        # 初始化字体
         self._init_fonts()
 
     def _init_fonts(self):
         try:
-            # 定义不同字体大小
             font_sizes = {
                 'title': 32,
                 'large': 22,
@@ -65,15 +58,12 @@ class ServerListDrawer:
                 'tiny': 13
             }
 
-            # 优先使用自定义字体（现在使用完整路径）
             custom_font_path = plugin_config.mc_motd_custom_font.strip()
-            if custom_font_path:  # 路径不为空时才检查
+            if custom_font_path:
                 if os.path.exists(custom_font_path):
                     try:
-                        # 测试字体是否可以正常加载
                         test_font = ImageFont.truetype(custom_font_path, font_sizes['medium'])
                         
-                        # 如果测试成功，为所有尺寸创建字体
                         self.fonts = {}
                         for size_name, size in font_sizes.items():
                             self.fonts[size_name] = ImageFont.truetype(custom_font_path, size)
@@ -86,13 +76,11 @@ class ServerListDrawer:
                 else:
                     logger.warning(f"自定义字体文件不存在: {custom_font_path}")
 
-            # 使用系统字体作为备用
             logger.info("使用系统字体")
             
             system = platform.system()
             logger.info(f"检测到操作系统: {system}")
 
-            # 根据操作系统选择字体
             fonts_to_try = []
 
             if system == "Windows":
@@ -120,7 +108,6 @@ class ServerListDrawer:
                     "DejaVu Sans",
                 ]
 
-            # 尝试加载字体
             self.fonts = {}
             font_loaded = False
 
@@ -149,28 +136,22 @@ class ServerListDrawer:
             self.fonts = {name: default_font for name in ['title', 'large', 'medium', 'small', 'tiny']}
 
     def compress_image(self, image: Image.Image) -> bytes:
-        """压缩图片为WebP格式"""
         try:
             if not plugin_config.mc_motd_enable_compression:
-                # 未启用压缩，保持原PNG格式
                 buffer = BytesIO()
                 image.save(buffer, format='PNG', quality=95, optimize=True)
                 image_bytes = buffer.getvalue()
                 buffer.close()
                 return image_bytes
             
-            # 启用压缩，转换为WebP格式
             buffer = BytesIO()
             quality = plugin_config.mc_motd_compression_quality
-            
-            # 确保质量值在有效范围内
             quality = max(1, min(100, quality))
             
             image.save(buffer, format='WebP', quality=quality, optimize=True)
             compressed_bytes = buffer.getvalue()
             buffer.close()
             
-            # 计算压缩比
             original_buffer = BytesIO()
             image.save(original_buffer, format='PNG', quality=95, optimize=True)
             original_size = len(original_buffer.getvalue())
@@ -184,7 +165,6 @@ class ServerListDrawer:
             
         except Exception as e:
             logger.error(f"图片压缩失败，回退到PNG格式: {e}")
-            # 压缩失败时回退到原始PNG格式
             buffer = BytesIO()
             image.save(buffer, format='PNG', quality=95, optimize=True)
             image_bytes = buffer.getvalue()
@@ -195,10 +175,7 @@ class ServerListDrawer:
         if not text:
             return ""
 
-        # 移除emoji和其他Unicode符号，保留基本的ASCII字符、中文字符和常用标点
         cleaned = re.sub(r'[^\u4e00-\u9fff\u3400-\u4dbf\w\s\.\-_:\/\[\]()（）、，。！？""'']+', '', text)
-        
-        # 清理多余的空格
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
         return cleaned
@@ -207,7 +184,6 @@ class ServerListDrawer:
         gradient = Image.new('RGB', (width, height), self.colors['background'])
         draw = ImageDraw.Draw(gradient)
 
-        # 从上到下的渐变
         for y in range(height):
             ratio = y / height
             start_color = tuple(int(self.colors['gradient_start'][i:i + 2], 16) for i in (1, 3, 5))
@@ -221,11 +197,9 @@ class ServerListDrawer:
         x1, y1, x2, y2 = bbox
         radius = min(radius, (x2 - x1) // 2, (y2 - y1) // 2)
 
-        # 绘制主体矩形
         draw.rectangle([x1 + radius, y1, x2 - radius, y2], fill=fill)
         draw.rectangle([x1, y1 + radius, x2, y2 - radius], fill=fill)
 
-        # 绘制四个角的圆形
         draw.pieslice([x1, y1, x1 + 2 * radius, y1 + 2 * radius], 180, 270, fill=fill)
         draw.pieslice([x2 - 2 * radius, y1, x2, y1 + 2 * radius], 270, 360, fill=fill)
         draw.pieslice([x1, y2 - 2 * radius, x1 + 2 * radius, y2], 90, 180, fill=fill)
@@ -235,13 +209,11 @@ class ServerListDrawer:
                                            radius: int, fill: str, shadow_color: str = None):
         x1, y1, x2, y2 = bbox
 
-        # 绘制阴影
         if shadow_color:
             shadow_bbox = (x1 + self.shadow_offset, y1 + self.shadow_offset,
                            x2 + self.shadow_offset, y2 + self.shadow_offset)
             self.draw_rounded_rectangle(draw, shadow_bbox, radius, shadow_color)
 
-        # 绘制主体
         self.draw_rounded_rectangle(draw, bbox, radius, fill)
 
     def safe_text_draw(self, draw: ImageDraw.Draw, position: tuple, text: str,
@@ -265,7 +237,6 @@ class ServerListDrawer:
         badge = Image.new('RGBA', (width, height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(badge)
 
-        # 选择颜色
         if is_online:
             bg_color = self.colors['online_accent']
             text_color = '#ffffff'
@@ -275,10 +246,8 @@ class ServerListDrawer:
             text_color = '#ffffff'
             text = '离线'
 
-        # 绘制徽章背景
         self.draw_rounded_rectangle(draw, (0, 0, width, height), height // 2, bg_color)
 
-        # 绘制文本
         try:
             text_bbox = draw.textbbox((0, 0), text, font=self.fonts['tiny'])
             text_width = text_bbox[2] - text_bbox[0]
@@ -287,7 +256,6 @@ class ServerListDrawer:
             text_y = (height - text_height) // 2
             self.safe_text_draw(draw, (text_x, text_y), text, self.fonts['tiny'], text_color)
         except:
-            # 如果文本绘制失败，绘制状态点
             dot_size = 8
             dot_x = (width - dot_size) // 2
             dot_y = (height - dot_size) // 2
@@ -317,28 +285,22 @@ class ServerListDrawer:
         icon = Image.new('RGBA', (72, 72), (0, 0, 0, 0))
         draw = ImageDraw.Draw(icon)
 
-        # 选择颜色
         if is_online:
-            circle_color = self.colors['online_accent']  # 绿色
+            circle_color = self.colors['online_accent']
         else:
-            circle_color = self.colors['offline_accent']  # 红色
+            circle_color = self.colors['offline_accent']
 
-        # 绘制主圆圈
         draw.ellipse([16, 16, 56, 56], fill=circle_color)
-        
-        # 添加白色边框
         draw.ellipse([16, 16, 56, 56], outline='#ffffff', width=2)
 
         return icon
 
     def draw_header(self, draw: ImageDraw.Draw, stats: dict):
-        # 绘制标题背景
         header_rect = (0, 0, self.width, self.header_height)
         self.draw_rounded_rectangle_with_shadow(draw, header_rect, self.corner_radius,
                                                 self.colors['header_bg'],
                                                 self.colors['shadow'] + '40')
 
-        # 主标题 - 使用配置中的标题
         title = plugin_config.mc_motd_title
         try:
             title_bbox = draw.textbbox((0, 0), title, font=self.fonts['title'])
@@ -350,10 +312,8 @@ class ServerListDrawer:
             self.safe_text_draw(draw, (self.width // 2 - 150, 25), "Minecraft Server Status",
                                 self.fonts['title'], self.colors['primary_text'])
 
-        # 统计信息 - 修改为：玩家n 假人n 合计n
         stats_parts = []
         if stats['total'] > 0:
-            # 计算真实玩家数和假人数
             real_players = stats['total_players']
             total_bots = stats.get('bots_filtered', 0)
             total_combined = real_players + total_bots
@@ -387,21 +347,17 @@ class ServerListDrawer:
 
         item_rect = (self.margin, y, self.width - self.margin, y + item_height)
 
-        # 绘制卡片背景（带阴影）
         self.draw_rounded_rectangle_with_shadow(draw, item_rect, self.corner_radius,
                                                 self.colors['card_bg'],
                                                 self.colors['shadow'] + '30')
 
-        # 绘制左侧状态指示条
         status_color = self.colors['online_accent'] if status.is_online else self.colors['offline_accent']
         status_rect = (self.margin, y, self.margin + 6, y + item_height)
         self.draw_rounded_rectangle(draw, status_rect, 3, status_color)
 
-        # 绘制服务器图标
         icon_x = self.margin + 25
         icon_y = y + 25
 
-        # 获取或创建图标
         icon = None
         if status.icon:
             icon = self.parse_server_icon(status.icon)
@@ -409,27 +365,22 @@ class ServerListDrawer:
         if not icon:
             icon = self.create_default_icon(status.is_online)
 
-        # 粘贴图标
         try:
             image.paste(icon, (icon_x, icon_y), icon)
         except Exception as e:
             logger.warning(f"粘贴图标失败: {e}")
 
-        # 文字区域
         text_x = icon_x + 90
 
-        # 服务器名称
         name_text = status.tag
         if len(name_text) > 25:
             name_text = name_text[:22] + "..."
         self.safe_text_draw(draw, (text_x, y + 20), name_text, self.fonts['large'],
                             self.colors['primary_text'], f"Server {index + 1}")
 
-        # 服务器地址
         self.safe_text_draw(draw, (text_x, y + 50), status.ip_port, self.fonts['medium'],
                             self.colors['secondary_text'])
 
-        # 右侧状态徽章
         badge_x = self.width - self.margin - 90
         badge_y = y + 20
         status_badge = self.create_status_badge(status.is_online)
@@ -438,17 +389,14 @@ class ServerListDrawer:
         except Exception as e:
             logger.warning(f"粘贴状态徽章失败: {e}")
 
-        # 状态信息
         status_y = y + 80
 
         if status.is_online:
             status_info = []
 
-            # 延迟信息
             if status.latency:
                 status_info.append(f"延迟 {status.latency}ms")
 
-            # 玩家信息
             if status.players_online is not None:
                 player_text = f"玩家 {status.players_online}/{status.players_max or '?'}"
                 status_info.append(player_text)
@@ -458,7 +406,6 @@ class ServerListDrawer:
                 self.safe_text_draw(draw, (text_x, status_y), status_text, self.fonts['small'],
                                     self.colors['online_accent'])
 
-            # MOTD信息
             if status.motd_clean:
                 motd_text = self.clean_text_for_display(status.motd_clean)
                 if len(motd_text) > 70:
@@ -467,15 +414,12 @@ class ServerListDrawer:
                     self.safe_text_draw(draw, (text_x, y + 105), f"MOTD: {motd_text}",
                                         self.fonts['tiny'], self.colors['muted_text'])
 
-            # 详细模式：显示玩家列表
             if show_detail and status.players_list_filtered:
                 players_y = y + 130
                 
-                # 玩家列表标题
                 self.safe_text_draw(draw, (text_x, players_y), "在线玩家:",
                                     self.fonts['small'], self.colors['accent_blue'])
                 
-                # 玩家名称列表
                 players_per_line = 6
                 player_lines = []
                 current_line = []
@@ -490,13 +434,11 @@ class ServerListDrawer:
                     self.safe_text_draw(draw, (text_x + 20, players_y + 25 + i * 20), line,
                                         self.fonts['tiny'], self.colors['secondary_text'])
                 
-                # 如果玩家太多，显示省略号
                 if len(status.players_list_filtered) > 30:
                     self.safe_text_draw(draw, (text_x + 20, players_y + 85), 
                                         f"... 等{len(status.players_list_filtered)}名玩家",
                                         self.fonts['tiny'], self.colors['muted_text'])
                 
-                # 假人过滤信息
                 if plugin_config.mc_motd_filter_bots and len(status.players_list_filtered) < len(status.players_list or []):
                     bot_count = len(status.players_list) - len(status.players_list_filtered)
                     self.safe_text_draw(draw, (self.width - self.margin - 200, players_y + 25), 
@@ -504,12 +446,10 @@ class ServerListDrawer:
                                         self.fonts['tiny'], self.colors['bot_accent'])
 
         else:
-            # 离线状态 - 只显示"离线"，不显示详细错误信息
             offline_text = "离线"
             self.safe_text_draw(draw, (text_x, status_y), offline_text, self.fonts['small'],
                                 self.colors['offline_accent'])
 
-        # 版本信息（右下角）
         if status.version and status.is_online:
             version_text = self.clean_text_for_display(status.version)
             if version_text and len(version_text) > 0:
@@ -540,17 +480,14 @@ class ServerListDrawer:
     def create_empty_state_image(self) -> bytes:
         height = 400
 
-        # 创建渐变背景
         image = self.create_gradient_background(self.width, height)
         draw = ImageDraw.Draw(image)
 
-        # 绘制空状态卡片
         card_rect = (self.margin * 2, height // 2 - 80, self.width - self.margin * 2, height // 2 + 80)
         self.draw_rounded_rectangle_with_shadow(draw, card_rect, self.corner_radius,
                                                 self.colors['card_bg'],
                                                 self.colors['shadow'] + '40')
 
-        # 空状态文本
         empty_text = "还没有添加任何服务器"
         help_text = "管理员可使用 /motd add ip:port 标签 来添加服务器"
 
@@ -573,7 +510,6 @@ class ServerListDrawer:
             self.safe_text_draw(draw, (self.width // 2 - 120, height // 2 + 10), "Use /motd add ip:port tag",
                                 self.fonts['medium'], self.colors['secondary_text'])
 
-        # 使用压缩方法处理图片
         return self.compress_image(image)
 
     async def draw_server_list(self, server_statuses: List[ServerStatus], show_detail: bool = False) -> Optional[bytes]:
@@ -582,7 +518,6 @@ class ServerListDrawer:
                 logger.info("没有服务器数据，生成空状态图片")
                 return self.create_empty_state_image()
 
-            # 计算每个服务器项的实际高度（考虑详细模式）
             item_heights = []
             total_content_height = 0
             
@@ -593,34 +528,26 @@ class ServerListDrawer:
                 item_heights.append(base_height)
                 total_content_height += base_height + self.item_spacing
 
-            # 移除最后一个间距
             if item_heights:
                 total_content_height -= self.item_spacing
 
-            # 计算图片总高度
             total_height = (self.header_height + total_content_height +
                             self.footer_height + self.margin * 4)
 
-            # 创建渐变背景
             image = self.create_gradient_background(self.width, total_height)
             draw = ImageDraw.Draw(image)
 
-            # 计算统计信息
             stats = get_summary_stats(server_statuses)
 
-            # 绘制标题
             self.draw_header(draw, stats)
 
-            # 绘制服务器列表
             current_y = self.header_height + self.margin * 2
             for index, status in enumerate(server_statuses):
                 item_height = self.draw_server_item(draw, image, current_y, status, index, show_detail)
                 current_y += item_height + self.item_spacing
 
-            # 绘制底部
             self.draw_footer(draw, current_y + self.margin - self.item_spacing)
 
-            # 使用压缩方法转换为字节数据
             image_bytes = self.compress_image(image)
 
             mode_text = "详细模式" if show_detail else "普通模式"
@@ -632,11 +559,7 @@ class ServerListDrawer:
             logger.error(f"绘制服务器列表时发生错误: {e}")
             return None
 
-
-# 创建全局绘图器实例
 drawer = ServerListDrawer()
 
-
-# 提供简单的函数接口
 async def draw_server_list(server_statuses: List[ServerStatus], show_detail: bool = False) -> Optional[bytes]:
     return await drawer.draw_server_list(server_statuses, show_detail)

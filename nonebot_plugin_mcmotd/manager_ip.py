@@ -3,19 +3,16 @@ import os
 from pathlib import Path
 from typing import List, Optional, NamedTuple
 from nonebot import logger
-from .config import plugin_config, plugin_db_path
-
+from .config import plugin_db_path
 
 class MinecraftServer(NamedTuple):
     id: int
     ip_port: str
     tag: str
 
-
 class ServerManager:
     def __init__(self):
         self.db_path = str(plugin_db_path)
-        # 确保数据目录存在
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
     async def init_database(self):
@@ -40,7 +37,6 @@ class ServerManager:
             await self.init_database()
 
             async with aiosqlite.connect(self.db_path) as db:
-                # 检查服务器是否已存在
                 async with db.execute(
                         "SELECT tag FROM minecraft_servers WHERE ip_port = ?",
                         (ip_port,)
@@ -50,7 +46,6 @@ class ServerManager:
                 if existing:
                     return False, f"服务器 {ip_port} 已存在，标签为：{existing[0]}"
 
-                # 添加新服务器
                 await db.execute(
                     "INSERT INTO minecraft_servers (ip_port, tag) VALUES (?, ?)",
                     (ip_port, tag)
@@ -69,7 +64,6 @@ class ServerManager:
             await self.init_database()
 
             async with aiosqlite.connect(self.db_path) as db:
-                # 查找要删除的服务器
                 async with db.execute(
                         "SELECT tag FROM minecraft_servers WHERE ip_port = ?",
                         (ip_port,)
@@ -79,7 +73,6 @@ class ServerManager:
                 if not server_to_delete:
                     return False, f"服务器 {ip_port} 不存在"
 
-                # 删除服务器
                 await db.execute(
                     "DELETE FROM minecraft_servers WHERE ip_port = ?",
                     (ip_port,)
@@ -98,7 +91,6 @@ class ServerManager:
             await self.init_database()
 
             async with aiosqlite.connect(self.db_path) as db:
-                # 获取当前服务器数量
                 async with db.execute("SELECT COUNT(*) FROM minecraft_servers") as cursor:
                     count_row = await cursor.fetchone()
                     current_count = count_row[0] if count_row else 0
@@ -106,11 +98,9 @@ class ServerManager:
                 if current_count == 0:
                     return False, "数据库中没有服务器可删除"
 
-                # 删除所有服务器
                 await db.execute("DELETE FROM minecraft_servers")
                 await db.commit()
 
-                # 重置自增ID
                 await db.execute("DELETE FROM sqlite_sequence WHERE name='minecraft_servers'")
                 await db.commit()
 
@@ -154,27 +144,19 @@ class ServerManager:
             logger.error(f"查询服务器失败：{e}")
             return None
 
-
-# 创建管理器实例
 server_manager = ServerManager()
 
-
-# 为了向后兼容和简化使用，提供简单的函数接口
 async def add_server(ip_port: str, tag: str) -> tuple[bool, str]:
     return await server_manager.add_server(ip_port, tag)
-
 
 async def delete_server(ip_port: str) -> tuple[bool, str]:
     return await server_manager.delete_server(ip_port)
 
-
 async def clear_all_servers() -> tuple[bool, str]:
     return await server_manager.clear_all_servers()
 
-
 async def get_all_servers() -> List[MinecraftServer]:
     return await server_manager.get_all_servers()
-
 
 async def get_server_by_ip(ip_port: str) -> Optional[MinecraftServer]:
     return await server_manager.get_server_by_ip(ip_port)

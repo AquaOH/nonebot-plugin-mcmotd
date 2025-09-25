@@ -1,12 +1,8 @@
-"""
-NoneBot Minecraft MOTD 插件
-
-用于查询 Minecraft 服务器状态并生成状态图片
-"""
-
 from nonebot.plugin import PluginMetadata
 
 from .config import Config
+
+__version__ = "1.0.5"
 
 __plugin_meta__ = PluginMetadata(
     name="Minecraft MOTD 查询",
@@ -34,10 +30,9 @@ __plugin_meta__ = PluginMetadata(
         "keywords": ["minecraft", "motd", "server", "status"],
         "features": [
             "Minecraft服务器状态查询",
-            "图片生成展示", 
+            "图片生成展示",
         ]
     }
 )
 
-# 导入命令处理器以确保插件被正确加载
-from . import commands  # noqa: E402
+from . import commands
