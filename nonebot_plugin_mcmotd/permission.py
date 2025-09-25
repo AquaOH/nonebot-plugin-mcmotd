@@ -47,6 +47,3 @@ def is_admin(event: Event) -> bool:
         return True
     
     return False
-
-def check_admin_permission(event: Event) -> bool:
-    return is_admin(event)

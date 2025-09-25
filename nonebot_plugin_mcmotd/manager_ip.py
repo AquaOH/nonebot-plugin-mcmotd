@@ -1,6 +1,5 @@
 import aiosqlite
 import os
-from pathlib import Path
 from typing import List, Optional, NamedTuple
 from nonebot import logger
 from .config import plugin_db_path

@@ -1,14 +1,45 @@
-import asyncio
 import base64
 import platform
 import re
 import os
 from io import BytesIO
 from typing import List, Optional, Tuple
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 from nonebot import logger
 from .get_motd import ServerStatus, get_summary_stats
 from .config import plugin_config
+
+DEFAULT_COLORS = {
+    'background': '#0d1117',
+    'background_secondary': '#161b22',
+    'card_bg': '#21262d',
+    'card_bg_hover': '#30363d',
+    'header_bg': '#1c2128',
+    'online_accent': '#238636',
+    'online_light': '#2ea043',
+    'offline_accent': '#da3633',
+    'offline_light': '#f85149',
+    'warning_accent': '#d29922',
+    'warning_light': '#f0883e',
+    'primary_text': '#f0f6fc',
+    'secondary_text': '#8b949e',
+    'muted_text': '#6e7681',
+    'accent_blue': '#58a6ff',
+    'accent_purple': '#bc8cff',
+    'divider': '#21262d',
+    'shadow': '#000000',
+    'gradient_start': '#1c2128',
+    'gradient_end': '#0d1117',
+    'bot_accent': '#fd7e14',
+}
+
+FONT_SIZES = {
+    'title': 32,
+    'large': 22,
+    'medium': 18,
+    'small': 15,
+    'tiny': 13
+}
 
 class ServerListDrawer:
     def __init__(self):
@@ -22,118 +53,72 @@ class ServerListDrawer:
         self.item_spacing = 20
         self.detail_extra_height = 80
 
-        self.colors = {
-            'background': '#0d1117',
-            'background_secondary': '#161b22',
-            'card_bg': '#21262d',
-            'card_bg_hover': '#30363d',
-            'header_bg': '#1c2128',
-            'online_accent': '#238636',
-            'online_light': '#2ea043',
-            'offline_accent': '#da3633',
-            'offline_light': '#f85149',
-            'warning_accent': '#d29922',
-            'warning_light': '#f0883e',
-            'primary_text': '#f0f6fc',
-            'secondary_text': '#8b949e',
-            'muted_text': '#6e7681',
-            'accent_blue': '#58a6ff',
-            'accent_purple': '#bc8cff',
-            'divider': '#21262d',
-            'shadow': '#000000',
-            'gradient_start': '#1c2128',
-            'gradient_end': '#0d1117',
-            'bot_accent': '#fd7e14',
-        }
-
+        self.colors = DEFAULT_COLORS
         self._init_fonts()
 
     def _init_fonts(self):
         try:
-            font_sizes = {
-                'title': 32,
-                'large': 22,
-                'medium': 18,
-                'small': 15,
-                'tiny': 13
-            }
-
             custom_font_path = plugin_config.mc_motd_custom_font.strip()
-            if custom_font_path:
-                if os.path.exists(custom_font_path):
-                    try:
-                        test_font = ImageFont.truetype(custom_font_path, font_sizes['medium'])
-                        
-                        self.fonts = {}
-                        for size_name, size in font_sizes.items():
-                            self.fonts[size_name] = ImageFont.truetype(custom_font_path, size)
-                        
-                        logger.success(f"成功加载自定义字体: {custom_font_path}")
-                        return
-                        
-                    except Exception as e:
-                        logger.error(f"自定义字体加载失败: {e}")
-                else:
-                    logger.warning(f"自定义字体文件不存在: {custom_font_path}")
+            if custom_font_path and os.path.exists(custom_font_path):
+                try:
+                    test_font = ImageFont.truetype(custom_font_path, FONT_SIZES['medium'])
+                    self.fonts = {name: ImageFont.truetype(custom_font_path, size) 
+                                for name, size in FONT_SIZES.items()}
+                    logger.success(f"成功加载自定义字体: {custom_font_path}")
+                    return
+                except Exception as e:
+                    logger.error(f"自定义字体加载失败: {e}")
 
             logger.info("使用系统字体")
-            
             system = platform.system()
-            logger.info(f"检测到操作系统: {system}")
-
-            fonts_to_try = []
-
-            if system == "Windows":
-                fonts_to_try = [
-                    "C:/Windows/Fonts/msyhbd.ttc",
-                    "C:/Windows/Fonts/msyh.ttc",
-                    "C:/Windows/Fonts/simhei.ttf",
-                    "C:/Windows/Fonts/simsun.ttc",
-                    "msyh.ttc",
-                    "simhei.ttf",
-                ]
-            elif system == "Darwin":
-                fonts_to_try = [
-                    "/System/Library/Fonts/PingFang.ttc",
-                    "/System/Library/Fonts/STHeiti Medium.ttc",
-                    "PingFang SC",
-                    "STHeiti",
-                ]
-            else:
-                fonts_to_try = [
-                    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-                    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                    "WenQuanYi Zen Hei",
-                    "DejaVu Sans",
-                ]
-
+            
+            fonts_to_try = self._get_system_fonts(system)
+            
             self.fonts = {}
-            font_loaded = False
-
             for font_path in fonts_to_try:
                 try:
-                    test_font = ImageFont.truetype(font_path, font_sizes['medium'])
-
-                    for size_name, size in font_sizes.items():
-                        self.fonts[size_name] = ImageFont.truetype(font_path, size)
-
+                    test_font = ImageFont.truetype(font_path, FONT_SIZES['medium'])
+                    self.fonts = {name: ImageFont.truetype(font_path, size) 
+                                for name, size in FONT_SIZES.items()}
                     logger.success(f"成功加载系统字体: {font_path}")
-                    font_loaded = True
-                    break
-
+                    return
                 except (OSError, IOError):
                     continue
 
-            if not font_loaded:
-                logger.warning("使用默认字体")
-                for size_name in font_sizes:
-                    self.fonts[size_name] = ImageFont.load_default()
+            logger.warning("使用默认字体")
+            default_font = ImageFont.load_default()
+            self.fonts = {name: default_font for name in FONT_SIZES.keys()}
 
         except Exception as e:
             logger.error(f"字体初始化失败: {e}")
             default_font = ImageFont.load_default()
-            self.fonts = {name: default_font for name in ['title', 'large', 'medium', 'small', 'tiny']}
+            self.fonts = {name: default_font for name in FONT_SIZES.keys()}
+
+    def _get_system_fonts(self, system: str) -> List[str]:
+        if system == "Windows":
+            return [
+                "C:/Windows/Fonts/msyhbd.ttc",
+                "C:/Windows/Fonts/msyh.ttc",
+                "C:/Windows/Fonts/simhei.ttf",
+                "C:/Windows/Fonts/simsun.ttc",
+                "msyh.ttc",
+                "simhei.ttf",
+            ]
+        elif system == "Darwin":
+            return [
+                "/System/Library/Fonts/PingFang.ttc",
+                "/System/Library/Fonts/STHeiti Medium.ttc",
+                "PingFang SC",
+                "STHeiti",
+            ]
+        else:
+            return [
+                "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "WenQuanYi Zen Hei",
+                "DejaVu Sans",
+            ]
 
     def compress_image(self, image: Image.Image) -> bytes:
         try:
@@ -145,8 +130,7 @@ class ServerListDrawer:
                 return image_bytes
             
             buffer = BytesIO()
-            quality = plugin_config.mc_motd_compression_quality
-            quality = max(1, min(100, quality))
+            quality = max(1, min(100, plugin_config.mc_motd_compression_quality))
             
             image.save(buffer, format='WebP', quality=quality, optimize=True)
             compressed_bytes = buffer.getvalue()
@@ -159,7 +143,7 @@ class ServerListDrawer:
             compression_ratio = (1 - compressed_size / original_size) * 100
             
             logger.info(f"图片压缩完成: PNG {original_size} bytes → WebP {compressed_size} bytes "
-                       f"(压缩比: {compression_ratio:.1f}%, 质量: {quality}%)")
+                       f"(压缩率: {compression_ratio:.1f}%, 质量: {quality}%)")
             
             return compressed_bytes
             
@@ -174,11 +158,8 @@ class ServerListDrawer:
     def clean_text_for_display(self, text: str) -> str:
         if not text:
             return ""
-
-        cleaned = re.sub(r'[^\u4e00-\u9fff\u3400-\u4dbf\w\s\.\-_:\/\[\]()（）、，。！？""'']+', '', text)
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-
-        return cleaned
+        cleaned = re.sub(r'[^\u4e00-\u9fff\u3400-\u4dbf\w\s\.\-_:\/\[\]()（），。！？""'']+', '', text)
+        return re.sub(r'\s+', ' ', cleaned).strip()
 
     def create_gradient_background(self, width: int, height: int) -> Image.Image:
         gradient = Image.new('RGB', (width, height), self.colors['background'])
@@ -207,13 +188,11 @@ class ServerListDrawer:
 
     def draw_rounded_rectangle_with_shadow(self, draw: ImageDraw.Draw, bbox: tuple,
                                            radius: int, fill: str, shadow_color: str = None):
-        x1, y1, x2, y2 = bbox
-
         if shadow_color:
+            x1, y1, x2, y2 = bbox
             shadow_bbox = (x1 + self.shadow_offset, y1 + self.shadow_offset,
                            x2 + self.shadow_offset, y2 + self.shadow_offset)
             self.draw_rounded_rectangle(draw, shadow_bbox, radius, shadow_color)
-
         self.draw_rounded_rectangle(draw, bbox, radius, fill)
 
     def safe_text_draw(self, draw: ImageDraw.Draw, position: tuple, text: str,
@@ -239,11 +218,9 @@ class ServerListDrawer:
 
         if is_online:
             bg_color = self.colors['online_accent']
-            text_color = '#ffffff'
             text = '在线'
         else:
             bg_color = self.colors['offline_accent']
-            text_color = '#ffffff'
             text = '离线'
 
         self.draw_rounded_rectangle(draw, (0, 0, width, height), height // 2, bg_color)
@@ -254,12 +231,12 @@ class ServerListDrawer:
             text_height = text_bbox[3] - text_bbox[1]
             text_x = (width - text_width) // 2
             text_y = (height - text_height) // 2
-            self.safe_text_draw(draw, (text_x, text_y), text, self.fonts['tiny'], text_color)
+            self.safe_text_draw(draw, (text_x, text_y), text, self.fonts['tiny'], '#ffffff')
         except:
             dot_size = 8
             dot_x = (width - dot_size) // 2
             dot_y = (height - dot_size) // 2
-            draw.ellipse([dot_x, dot_y, dot_x + dot_size, dot_y + dot_size], fill=text_color)
+            draw.ellipse([dot_x, dot_y, dot_x + dot_size, dot_y + dot_size], fill='#ffffff')
 
         return badge
 
@@ -285,11 +262,7 @@ class ServerListDrawer:
         icon = Image.new('RGBA', (72, 72), (0, 0, 0, 0))
         draw = ImageDraw.Draw(icon)
 
-        if is_online:
-            circle_color = self.colors['online_accent']
-        else:
-            circle_color = self.colors['offline_accent']
-
+        circle_color = self.colors['online_accent'] if is_online else self.colors['offline_accent']
         draw.ellipse([16, 16, 56, 56], fill=circle_color)
         draw.ellipse([16, 16, 56, 56], outline='#ffffff', width=2)
 
@@ -346,7 +319,6 @@ class ServerListDrawer:
             item_height += self.detail_extra_height
 
         item_rect = (self.margin, y, self.width - self.margin, y + item_height)
-
         self.draw_rounded_rectangle_with_shadow(draw, item_rect, self.corner_radius,
                                                 self.colors['card_bg'],
                                                 self.colors['shadow'] + '30')
@@ -358,10 +330,7 @@ class ServerListDrawer:
         icon_x = self.margin + 25
         icon_y = y + 25
 
-        icon = None
-        if status.icon:
-            icon = self.parse_server_icon(status.icon)
-
+        icon = self.parse_server_icon(status.icon) if status.icon else None
         if not icon:
             icon = self.create_default_icon(status.is_online)
 
@@ -372,9 +341,7 @@ class ServerListDrawer:
 
         text_x = icon_x + 90
 
-        name_text = status.tag
-        if len(name_text) > 25:
-            name_text = name_text[:22] + "..."
+        name_text = status.tag[:22] + "..." if len(status.tag) > 25 else status.tag
         self.safe_text_draw(draw, (text_x, y + 20), name_text, self.fonts['large'],
                             self.colors['primary_text'], f"Server {index + 1}")
 
@@ -389,14 +356,16 @@ class ServerListDrawer:
         except Exception as e:
             logger.warning(f"粘贴状态徽章失败: {e}")
 
+        self._draw_server_details(draw, image, y, status, text_x, show_detail, item_height)
+        return item_height
+
+    def _draw_server_details(self, draw, image, y, status, text_x, show_detail, item_height):
         status_y = y + 80
 
         if status.is_online:
             status_info = []
-
             if status.latency:
                 status_info.append(f"延迟 {status.latency}ms")
-
             if status.players_online is not None:
                 player_text = f"玩家 {status.players_online}/{status.players_max or '?'}"
                 status_info.append(player_text)
@@ -415,55 +384,57 @@ class ServerListDrawer:
                                         self.fonts['tiny'], self.colors['muted_text'])
 
             if show_detail and status.players_list_filtered:
-                players_y = y + 130
-                
-                self.safe_text_draw(draw, (text_x, players_y), "在线玩家:",
-                                    self.fonts['small'], self.colors['accent_blue'])
-                
-                players_per_line = 6
-                player_lines = []
-                current_line = []
-                
-                for i, player in enumerate(status.players_list_filtered[:30]):
-                    current_line.append(player)
-                    if len(current_line) >= players_per_line or i == len(status.players_list_filtered) - 1:
-                        player_lines.append(", ".join(current_line))
-                        current_line = []
-                
-                for i, line in enumerate(player_lines[:3]):
-                    self.safe_text_draw(draw, (text_x + 20, players_y + 25 + i * 20), line,
-                                        self.fonts['tiny'], self.colors['secondary_text'])
-                
-                if len(status.players_list_filtered) > 30:
-                    self.safe_text_draw(draw, (text_x + 20, players_y + 85), 
-                                        f"... 等{len(status.players_list_filtered)}名玩家",
-                                        self.fonts['tiny'], self.colors['muted_text'])
-                
-                if plugin_config.mc_motd_filter_bots and len(status.players_list_filtered) < len(status.players_list or []):
-                    bot_count = len(status.players_list) - len(status.players_list_filtered)
-                    self.safe_text_draw(draw, (self.width - self.margin - 200, players_y + 25), 
-                                        f"已过滤假人: {bot_count}个",
-                                        self.fonts['tiny'], self.colors['bot_accent'])
-
+                self._draw_player_list(draw, text_x, y, status)
         else:
-            offline_text = "离线"
-            self.safe_text_draw(draw, (text_x, status_y), offline_text, self.fonts['small'],
+            self.safe_text_draw(draw, (text_x, status_y), "离线", self.fonts['small'],
                                 self.colors['offline_accent'])
 
         if status.version and status.is_online:
-            version_text = self.clean_text_for_display(status.version)
-            if version_text and len(version_text) > 0:
-                try:
-                    version_bbox = draw.textbbox((0, 0), version_text, font=self.fonts['tiny'])
-                    version_width = version_bbox[2] - version_bbox[0]
-                    version_x = self.width - self.margin - version_width - 20
-                    version_y = y + item_height - 30
-                    self.safe_text_draw(draw, (version_x, version_y), version_text,
-                                        self.fonts['tiny'], self.colors['muted_text'])
-                except Exception as e:
-                    logger.warning(f"绘制版本信息失败: {e}")
+            self._draw_version_info(draw, status, y, item_height)
 
-        return item_height
+    def _draw_player_list(self, draw, text_x, y, status):
+        players_y = y + 130
+        
+        self.safe_text_draw(draw, (text_x, players_y), "在线玩家:",
+                            self.fonts['small'], self.colors['accent_blue'])
+        
+        players_per_line = 6
+        player_lines = []
+        current_line = []
+        
+        for i, player in enumerate(status.players_list_filtered[:30]):
+            current_line.append(player)
+            if len(current_line) >= players_per_line or i == len(status.players_list_filtered) - 1:
+                player_lines.append(", ".join(current_line))
+                current_line = []
+        
+        for i, line in enumerate(player_lines[:3]):
+            self.safe_text_draw(draw, (text_x + 20, players_y + 25 + i * 20), line,
+                                self.fonts['tiny'], self.colors['secondary_text'])
+        
+        if len(status.players_list_filtered) > 30:
+            self.safe_text_draw(draw, (text_x + 20, players_y + 85), 
+                                f"... 等{len(status.players_list_filtered)}名玩家",
+                                self.fonts['tiny'], self.colors['muted_text'])
+        
+        if plugin_config.mc_motd_filter_bots and len(status.players_list_filtered) < len(status.players_list or []):
+            bot_count = len(status.players_list) - len(status.players_list_filtered)
+            self.safe_text_draw(draw, (self.width - self.margin - 200, players_y + 25), 
+                                f"已过滤假人: {bot_count}个",
+                                self.fonts['tiny'], self.colors['bot_accent'])
+
+    def _draw_version_info(self, draw, status, y, item_height):
+        version_text = self.clean_text_for_display(status.version)
+        if version_text:
+            try:
+                version_bbox = draw.textbbox((0, 0), version_text, font=self.fonts['tiny'])
+                version_width = version_bbox[2] - version_bbox[0]
+                version_x = self.width - self.margin - version_width - 20
+                version_y = y + item_height - 30
+                self.safe_text_draw(draw, (version_x, version_y), version_text,
+                                    self.fonts['tiny'], self.colors['muted_text'])
+            except Exception as e:
+                logger.warning(f"绘制版本信息失败: {e}")
 
     def draw_footer(self, draw: ImageDraw.Draw, y: int):
         footer_text = "Powered by NoneBot MC MOTD Plugin"
@@ -479,7 +450,6 @@ class ServerListDrawer:
 
     def create_empty_state_image(self) -> bytes:
         height = 400
-
         image = self.create_gradient_background(self.width, height)
         draw = ImageDraw.Draw(image)
 
@@ -538,7 +508,6 @@ class ServerListDrawer:
             draw = ImageDraw.Draw(image)
 
             stats = get_summary_stats(server_statuses)
-
             self.draw_header(draw, stats)
 
             current_y = self.header_height + self.margin * 2

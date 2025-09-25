@@ -1,6 +1,6 @@
 [project]
 name = "nonebot-plugin-mcmotd"
-version = "1.0.5"
+dynamic = ["version"]
 description = "A NoneBot2 plugin for querying Minecraft server status and generating status images"
 authors = [
     { name = "AquaOH", email = "aquaoh@outlook.com" }

@@ -1,7 +1,6 @@
 import re
-from typing import List, Optional
 from nonebot import on_command, logger
-from nonebot.adapters.onebot.v11 import Bot, Event, MessageSegment, Message, GroupMessageEvent, PrivateMessageEvent
+from nonebot.adapters.onebot.v11 import Event, MessageSegment, Message, GroupMessageEvent, PrivateMessageEvent
 from nonebot.params import CommandArg
 from nonebot.exception import FinishedException
 
@@ -10,6 +9,31 @@ from .permission import is_admin
 from .manager_ip import add_server, delete_server, clear_all_servers
 from .get_motd import query_all_servers
 from .draw_pic import draw_server_list
+
+PERMISSION_DENIED_MSG = (
+    "权限不足，仅管理员可执行管理操作。\n"
+    "当前用户: {user_id}\n"
+    "管理员权限包括：\n"
+    "- NoneBot 超级管理员 (SUPERUSERS)\n"
+    "- 插件超级管理员 (MC_MOTD_SUPERUSERS)\n"
+    "- 群管理员或群主 (需开启群管理员权限)"
+)
+
+HELP_TEXT = (
+    "🔧 Minecraft MOTD 插件使用帮助\n\n"
+    "用户命令（任何人可用）：\n"
+    "/motd - 查询所有服务器状态\n"
+    "/motd --detail - 显示详细信息包括玩家列表\n\n"
+    "管理员命令（超级管理员或群管理员）：\n"
+    "/motd add ip:port 标签 - 添加服务器\n"
+    "/motd del ip:port - 删除指定服务器\n"
+    "/motd del -rf - 删除所有服务器\n"
+    "/motd help - 显示此帮助信息\n\n"
+    "示例：\n"
+    "/motd add hypixel.net Hypixel服务器\n"
+    "/motd add play.example.com:25566 我的服务器\n"
+    "/motd del hypixel.net"
+)
 
 def check_chat_permission(event: Event) -> bool:
     if isinstance(event, PrivateMessageEvent):
@@ -46,78 +70,15 @@ async def handle_manage(event: Event, args: Message = CommandArg()):
         action = parts[0].lower()
         
         if action == "help":
-            help_text = (
-                "🔧 Minecraft MOTD 插件使用帮助\n\n"
-                "用户命令（任何人可用）：\n"
-                "/motd - 查询所有服务器状态\n"
-                "/motd --detail - 显示详细信息包括玩家列表\n\n"
-                "管理员命令（超级管理员或群管理员）：\n"
-                "/motd add ip:port 标签 - 添加服务器\n"
-                "/motd del ip:port - 删除指定服务器\n"
-                "/motd del -rf - 删除所有服务器\n"
-                "/motd help - 显示此帮助信息\n\n"
-                "示例：\n"
-                "/motd add hypixel.net Hypixel服务器\n"
-                "/motd add play.example.com:25566 我的服务器\n"
-                "/motd del hypixel.net"
-            )
-            await manage_matcher.finish(help_text)
+            await manage_matcher.finish(HELP_TEXT)
         
         if not is_admin(event):
-            await manage_matcher.finish(
-                f"权限不足，仅管理员可执行管理操作。\n"
-                f"当前用户: {event.user_id}\n"
-                f"管理员权限包括：\n"
-                f"- NoneBot 超级管理员 (SUPERUSERS)\n"
-                f"- 插件超级管理员 (MC_MOTD_SUPERUSERS)\n"
-                f"- 群管理员或群主 (需开启群管理员权限)"
-            )
+            await manage_matcher.finish(PERMISSION_DENIED_MSG.format(user_id=event.user_id))
         
         if action == "add":
-            if len(parts) < 3:
-                await manage_matcher.finish("格式错误。正确格式：/motd add ip:port 服务器标签")
-            
-            ip_port = parts[1]
-            tag = " ".join(parts[2:])
-            
-            if not re.match(r'^[a-zA-Z0-9\.\-_]+(?::\d{1,5})?$', ip_port):
-                await manage_matcher.finish("IP地址格式错误。格式：ip:port 或 域名:port")
-            
-            if ':' in ip_port:
-                try:
-                    port = int(ip_port.split(':')[-1])
-                    if not (1 <= port <= 65535):
-                        await manage_matcher.finish("端口号必须在 1-65535 范围内")
-                except ValueError:
-                    await manage_matcher.finish("端口号必须是数字")
-            
-            success, message = await add_server(ip_port, tag)
-            if success:
-                logger.info(f"管理员 {event.user_id} 添加了服务器: {ip_port} - {tag}")
-                await manage_matcher.finish(f"✅ 已添加服务器: {tag}")
-            else:
-                await manage_matcher.finish(f"❌ 添加失败")
-        
+            await handle_add_server(parts)
         elif action == "del":
-            if len(parts) < 2:
-                await manage_matcher.finish("格式错误。正确格式：\n/motd del ip:port - 删除指定服务器\n/motd del -rf - 删除所有服务器")
-            
-            if parts[1] == "-rf":
-                success, message = await clear_all_servers()
-                if success:
-                    logger.warning(f"管理员 {event.user_id} 清空了所有服务器")
-                    await manage_matcher.finish("✅ 已清空所有服务器")
-                else:
-                    await manage_matcher.finish("❌ 清空失败")
-            else:
-                ip_port = parts[1]
-                success, message = await delete_server(ip_port)
-                if success:
-                    logger.warning(f"管理员 {event.user_id} 删除了服务器: {ip_port}")
-                    await manage_matcher.finish("✅ 已删除服务器")
-                else:
-                    await manage_matcher.finish("❌ 删除失败")
-        
+            await handle_delete_server(parts)
         else:
             await manage_matcher.finish(f"未知命令: {action}\n使用 /motd help 查看帮助。")
 
@@ -125,6 +86,49 @@ async def handle_manage(event: Event, args: Message = CommandArg()):
         pass
     except Exception as e:
         logger.error(f"处理管理命令时发生错误: {e}")
+
+async def handle_add_server(parts):
+    if len(parts) < 3:
+        await manage_matcher.finish("格式错误。正确格式：/motd add ip:port 服务器标签")
+    
+    ip_port = parts[1]
+    tag = " ".join(parts[2:])
+    
+    if not re.match(r'^[a-zA-Z0-9\.\-_]+(?::\d{1,5})?$', ip_port):
+        await manage_matcher.finish("IP地址格式错误。格式：ip:port 或 域名:port")
+    
+    if ':' in ip_port:
+        try:
+            port = int(ip_port.split(':')[-1])
+            if not (1 <= port <= 65535):
+                await manage_matcher.finish("端口号必须在 1-65535 范围内")
+        except ValueError:
+            await manage_matcher.finish("端口号必须是数字")
+    
+    success, message = await add_server(ip_port, tag)
+    if success:
+        logger.info(f"管理员添加了服务器: {ip_port} - {tag}")
+        await manage_matcher.finish(f"✅ 已添加服务器: {tag}")
+    else:
+        await manage_matcher.finish("❌ 添加失败")
+
+async def handle_delete_server(parts):
+    if len(parts) < 2:
+        await manage_matcher.finish("格式错误。正确格式：\n/motd del ip:port - 删除指定服务器\n/motd del -rf - 删除所有服务器")
+    
+    if parts[1] == "-rf":
+        success, message = await clear_all_servers()
+        result_msg = "✅ 已清空所有服务器" if success else "❌ 清空失败"
+        if success:
+            logger.warning("管理员清空了所有服务器")
+        await manage_matcher.finish(result_msg)
+    else:
+        ip_port = parts[1]
+        success, message = await delete_server(ip_port)
+        result_msg = "✅ 已删除服务器" if success else "❌ 删除失败"
+        if success:
+            logger.warning(f"管理员删除了服务器: {ip_port}")
+        await manage_matcher.finish(result_msg)
 
 async def handle_query_logic(event: Event, show_detail: bool):
     try:
