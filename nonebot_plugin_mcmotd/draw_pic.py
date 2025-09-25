@@ -6,12 +6,9 @@ import os
 from io import BytesIO
 from typing import List, Optional, Tuple
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-from nonebot import logger, get_plugin_config
+from nonebot import logger
 from .get_motd import ServerStatus, get_summary_stats
-from .config import Config
-
-# 获取配置
-plugin_config = get_plugin_config(Config)
+from .config import plugin_config
 
 
 class ServerListDrawer:
@@ -68,20 +65,10 @@ class ServerListDrawer:
                 'tiny': 13
             }
 
-            # 优先使用自定义字体
-            custom_font_name = plugin_config.mc_motd_custom_font.strip()
-            if custom_font_name:
-                # 支持多种扩展名
-                font_extensions = ['.ttf', '.otf', '.ttc']
-                custom_font_path = None
-                
-                for ext in font_extensions:
-                    test_path = f"data/fonts/{custom_font_name}{ext}"
-                    if os.path.exists(test_path):
-                        custom_font_path = test_path
-                        break
-                
-                if custom_font_path:
+            # 优先使用自定义字体（现在使用完整路径）
+            custom_font_path = plugin_config.mc_motd_custom_font.strip()
+            if custom_font_path:  # 路径不为空时才检查
+                if os.path.exists(custom_font_path):
                     try:
                         # 测试字体是否可以正常加载
                         test_font = ImageFont.truetype(custom_font_path, font_sizes['medium'])
@@ -97,7 +84,7 @@ class ServerListDrawer:
                     except Exception as e:
                         logger.error(f"自定义字体加载失败: {e}")
                 else:
-                    logger.warning(f"自定义字体文件不存在: data/fonts/{custom_font_name}[.ttf/.otf/.ttc]")
+                    logger.warning(f"自定义字体文件不存在: {custom_font_path}")
 
             # 使用系统字体作为备用
             logger.info("使用系统字体")
@@ -287,21 +274,17 @@ class ServerListDrawer:
         icon = Image.new('RGBA', (72, 72), (0, 0, 0, 0))
         draw = ImageDraw.Draw(icon)
 
+        # 选择颜色
         if is_online:
-            bg_color = self.colors['online_accent']
-            accent_color = self.colors['online_light']
+            circle_color = self.colors['online_accent']  # 绿色
         else:
-            bg_color = self.colors['offline_accent']
-            accent_color = self.colors['offline_light']
+            circle_color = self.colors['offline_accent']  # 红色
 
-        # 绘制圆角背景
-        self.draw_rounded_rectangle(draw, (8, 8, 64, 64), 12, bg_color)
-
-        # 绘制装饰图案
-        draw.rectangle([20, 20, 32, 32], fill=accent_color)
-        draw.rectangle([36, 20, 48, 32], fill=accent_color)
-        draw.rectangle([20, 36, 32, 48], fill=accent_color)
-        draw.rectangle([36, 36, 48, 48], fill=accent_color)
+        # 绘制主圆圈
+        draw.ellipse([16, 16, 56, 56], fill=circle_color)
+        
+        # 添加白色边框
+        draw.ellipse([16, 16, 56, 56], outline='#ffffff', width=2)
 
         return icon
 
@@ -478,15 +461,8 @@ class ServerListDrawer:
                                         self.fonts['tiny'], self.colors['bot_accent'])
 
         else:
-            # 离线状态
+            # 离线状态 - 只显示"离线"，不显示详细错误信息
             offline_text = "离线"
-            if status.error_message:
-                error_msg = self.clean_text_for_display(status.error_message)
-                if len(error_msg) > 35:
-                    error_msg = error_msg[:32] + "..."
-                if error_msg:
-                    offline_text += f" | {error_msg}"
-
             self.safe_text_draw(draw, (text_x, status_y), offline_text, self.fonts['small'],
                                 self.colors['offline_accent'])
 

@@ -1,38 +1,28 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field
 from typing import List, Optional
+from nonebot import get_plugin_config, require
 
+# 引入localstore插件
+require("nonebot_plugin_localstore")
+import nonebot_plugin_localstore as store
 
 class Config(BaseModel):
     mc_motd_superusers: List[str] = []
-    mc_motd_timeout: float = 5.0
+    mc_motd_timeout: float = Field(default=5.0, gt=0)
     mc_motd_filter_bots: bool = True
     mc_motd_bot_names: List[str] = ["Anonymous Player"]
-    mc_motd_image_width: int = 1000
-    mc_motd_item_height: int = 160
-    mc_motd_margin: int = 30
-    mc_motd_db_path: str = "data/minecraft_servers.db"
+    mc_motd_image_width: int = Field(default=1000, ge=400)
+    mc_motd_item_height: int = Field(default=160, ge=100)
+    mc_motd_margin: int = Field(default=30, ge=10)
     mc_motd_allowed_groups: List[str] = [] 
-    mc_motd_allow_private: bool = True      
+    mc_motd_allow_private: bool = True
+    mc_motd_group_admin_permission: bool = True  # 新增：群管理员权限配置
     mc_motd_title: str = "Minecraft 服务器状态"
-    mc_motd_custom_font: str = ""  # 自定义字体文件名（放在data/fonts目录下，只需文件名不含扩展名）
-    
-    @field_validator("mc_motd_timeout")
-    @classmethod
-    def check_timeout(cls, v: float) -> float:
-        if v > 0:
-            return v
-        raise ValueError("mc_motd_timeout must be greater than 0")
-    
-    @field_validator("mc_motd_image_width")
-    @classmethod
-    def check_image_width(cls, v: int) -> int:
-        if v >= 400:
-            return v
-        raise ValueError("mc_motd_image_width must be at least 400")
-    
-    @field_validator("mc_motd_item_height")
-    @classmethod
-    def check_item_height(cls, v: int) -> int:
-        if v >= 100:
-            return v
-        raise ValueError("mc_motd_item_height must be at least 100")
+    mc_motd_custom_font: str = ""  # 自定义字体完整路径
+
+# 获取配置实例并导出
+plugin_config = get_plugin_config(Config)
+
+# 获取插件数据目录
+plugin_data_dir = store.get_plugin_data_dir()
+plugin_db_path = plugin_data_dir / "mcmotd_serverlist.db"

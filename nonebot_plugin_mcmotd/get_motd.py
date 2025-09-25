@@ -3,14 +3,11 @@ import time
 import re
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass, field
-from nonebot import logger, get_plugin_config
+from nonebot import logger
 
 from mcstatus import JavaServer
 from .manager_ip import get_all_servers, MinecraftServer
-from .config import Config
-
-# 获取配置
-plugin_config = get_plugin_config(Config)
+from .config import plugin_config
 
 
 @dataclass

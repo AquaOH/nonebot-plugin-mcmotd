@@ -1,18 +1,15 @@
 import re
 from typing import List, Optional
-from nonebot import on_command, logger, get_plugin_config
+from nonebot import on_command, logger
 from nonebot.adapters.onebot.v11 import Bot, Event, MessageSegment, Message, GroupMessageEvent, PrivateMessageEvent
 from nonebot.params import CommandArg
 from nonebot.exception import FinishedException
 
-from .config import Config
-from .permission import is_superuser
+from .config import plugin_config
+from .permission import is_admin
 from .manager_ip import add_server, delete_server, clear_all_servers
 from .get_motd import query_all_servers
 from .draw_pic import draw_server_list
-
-# 获取配置
-plugin_config = get_plugin_config(Config)
 
 def check_chat_permission(event: Event) -> bool:
     """检查是否允许在当前会话中响应"""
@@ -64,7 +61,7 @@ async def handle_manage(event: Event, args: Message = CommandArg()):
                 "用户命令（任何人可用）：\n"
                 "/motd - 查询所有服务器状态\n"
                 "/motd --detail - 显示详细信息包括玩家列表\n\n"
-                "管理员命令（仅超级管理员）：\n"
+                "管理员命令（超级管理员或群管理员）：\n"
                 "/motd add ip:port 标签 - 添加服务器\n"
                 "/motd del ip:port - 删除指定服务器\n"
                 "/motd del -rf - 删除所有服务器\n"
@@ -77,11 +74,14 @@ async def handle_manage(event: Event, args: Message = CommandArg()):
             await manage_matcher.finish(help_text)
         
         # 检查管理员权限
-        if not is_superuser(event):
+        if not is_admin(event):
             await manage_matcher.finish(
-                f"权限不足，仅超级管理员可执行管理操作。\n"
+                f"权限不足，仅管理员可执行管理操作。\n"
                 f"当前用户: {event.user_id}\n"
-                f"如需管理权限，请联系机器人管理员在.env文件中配置 MC_MOTD_SUPERUSERS"
+                f"管理员权限包括：\n"
+                f"- NoneBot 超级管理员 (SUPERUSERS)\n"
+                f"- 插件超级管理员 (MC_MOTD_SUPERUSERS)\n"
+                f"- 群管理员或群主 (需开启群管理员权限)"
             )
         
         # 添加服务器

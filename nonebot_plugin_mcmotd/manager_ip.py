@@ -2,11 +2,8 @@ import aiosqlite
 import os
 from pathlib import Path
 from typing import List, Optional, NamedTuple
-from nonebot import logger, get_plugin_config
-from .config import Config
-
-# 获取配置
-plugin_config = get_plugin_config(Config)
+from nonebot import logger
+from .config import plugin_config, plugin_db_path
 
 
 class MinecraftServer(NamedTuple):
@@ -16,8 +13,8 @@ class MinecraftServer(NamedTuple):
 
 
 class ServerManager:
-    def __init__(self, db_path: str = None):
-        self.db_path = db_path or plugin_config.mc_motd_db_path
+    def __init__(self):
+        self.db_path = str(plugin_db_path)
         # 确保数据目录存在
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
 
