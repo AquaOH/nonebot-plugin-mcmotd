@@ -1,11 +1,21 @@
 import asyncio
 import time
 import re
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass, field
 from nonebot import logger
 
+try:
+    import dns.resolver
+    DNS_AVAILABLE = True
+except ImportError:
+    DNS_AVAILABLE = False
+    logger.warning("dnspython 未安装，无法解析 SRV 记录")
+
 from mcstatus import JavaServer
+from mcstatus.address import Address
+from mcstatus.pinger import ServerPinger
+from mcstatus.protocol.connection import TCPSocketConnection
 from .manager_ip import get_all_servers, MinecraftServer
 from .config import plugin_config
 
@@ -103,10 +113,43 @@ class PlayerFilter:
         return filtered
 
 
+class SRVResolver:
+    """SRV记录解析器"""
+    
+    @staticmethod
+    def resolve_srv(hostname: str) -> Optional[Tuple[str, int]]:
+        """解析SRV记录，返回(真实主机名, 端口)"""
+        if not DNS_AVAILABLE:
+            return None
+            
+        srv_request = "_minecraft._tcp"
+        request = f"{srv_request}.{hostname}"
+        
+        try:
+            answers = dns.resolver.resolve(request, 'SRV')
+            if answers:
+                answer = answers[0]
+                port = answer.port
+                host = str(answer.target).rstrip(".")
+                logger.info(f"SRV解析成功: {hostname} -> {host}:{port}")
+                return host, int(port)
+        except dns.resolver.NXDOMAIN:
+            logger.debug(f"SRV记录不存在: {request}")
+        except dns.resolver.NoAnswer:
+            logger.debug(f"SRV查询无结果: {request}")
+        except dns.resolver.Timeout:
+            logger.warning(f"SRV查询超时: {request}")
+        except Exception as e:
+            logger.warning(f"SRV解析失败: {request}, 错误: {e}")
+        
+        return None
+
+
 class MotdQuery:
     def __init__(self, timeout: float = None):
         self.timeout = timeout or plugin_config.mc_motd_timeout
         self.player_filter = PlayerFilter()
+        self.srv_resolver = SRVResolver()
 
     @staticmethod
     def clean_motd(motd: str) -> str:
@@ -149,6 +192,30 @@ class MotdQuery:
 
         return motd
 
+    async def query_server_with_direct_ping(self, host: str, port: int) -> Optional[Dict[str, Any]]:
+        """使用直接ping方式查询服务器，跳过test_ping"""
+        try:
+            address = Address(host, port)
+            pinger = ServerPinger(TCPSocketConnection(address), address=address)
+            
+            # 在线程池中执行阻塞操作
+            loop = asyncio.get_event_loop()
+            
+            def _ping():
+                pinger.handshake()
+                return pinger.read_status()
+            
+            status = await asyncio.wait_for(
+                loop.run_in_executor(None, _ping),
+                timeout=self.timeout
+            )
+            
+            return status
+            
+        except Exception as e:
+            logger.debug(f"直接ping查询失败 {host}:{port}: {e}")
+            return None
+
     async def query_server(self, ip_port: str, tag: str) -> ServerStatus:
         logger.info(f"开始查询服务器: {ip_port} ({tag})")
 
@@ -168,65 +235,94 @@ class MotdQuery:
                 host = ip_port
                 port = 25565  # 默认端口
 
-            # 创建服务器连接
-            server = JavaServer(host, port)
-
-            # 查询服务器状态（异步执行）
             start_time = time.time()
+            server_status = None
+            method_used = ""
 
-            # 使用asyncio运行同步函数
-            loop = asyncio.get_event_loop()
-            server_status = await asyncio.wait_for(
-                loop.run_in_executor(None, server.status),
-                timeout=self.timeout
-            )
+            # 方法1：尝试SRV记录解析
+            if not server_status and DNS_AVAILABLE:
+                srv_result = self.srv_resolver.resolve_srv(host)
+                if srv_result:
+                    srv_host, srv_port = srv_result
+                    try:
+                        # 先尝试直接ping方式
+                        server_status = await self.query_server_with_direct_ping(srv_host, srv_port)
+                        if server_status:
+                            method_used = f"SRV+DirectPing({srv_host}:{srv_port})"
+                        else:
+                            # 如果直接ping失败，尝试常规方式
+                            server = JavaServer(srv_host, srv_port)
+                            loop = asyncio.get_event_loop()
+                            server_status = await asyncio.wait_for(
+                                loop.run_in_executor(None, server.status),
+                                timeout=self.timeout
+                            )
+                            method_used = f"SRV+Regular({srv_host}:{srv_port})"
+                    except Exception as e:
+                        logger.debug(f"SRV解析后查询失败: {e}")
 
-            # 计算延迟
-            status.latency = round((time.time() - start_time) * 1000, 2)  # 转换为毫秒
+            # 方法2：尝试直接ping方式（针对原地址）
+            if not server_status:
+                server_status = await self.query_server_with_direct_ping(host, port)
+                if server_status:
+                    method_used = f"DirectPing({host}:{port})"
 
-            # 服务器在线
-            status.is_online = True
+            # 方法3：常规方式查询（原地址）
+            if not server_status:
+                server = JavaServer(host, port)
+                loop = asyncio.get_event_loop()
+                server_status = await asyncio.wait_for(
+                    loop.run_in_executor(None, server.status),
+                    timeout=self.timeout
+                )
+                method_used = f"Regular({host}:{port})"
 
-            # 提取MOTD信息
-            if hasattr(server_status, 'description'):
-                status.motd = self.parse_motd_from_description(server_status.description)
-                status.motd_clean = self.clean_motd(status.motd)
+            # 如果所有方法都成功了其中一种
+            if server_status:
+                # 计算延迟
+                status.latency = round((time.time() - start_time) * 1000, 2)
+                status.is_online = True
 
-            # 提取版本信息
-            if hasattr(server_status, 'version'):
-                if hasattr(server_status.version, 'name'):
-                    status.version = server_status.version.name
-                if hasattr(server_status.version, 'protocol'):
-                    status.protocol = server_status.version.protocol
+                # 提取MOTD信息
+                if hasattr(server_status, 'description'):
+                    status.motd = self.parse_motd_from_description(server_status.description)
+                    status.motd_clean = self.clean_motd(status.motd)
 
-            # 提取玩家信息
-            if hasattr(server_status, 'players'):
-                status.players_online = server_status.players.online
-                status.players_max = server_status.players.max
+                # 提取版本信息
+                if hasattr(server_status, 'version'):
+                    if hasattr(server_status.version, 'name'):
+                        status.version = server_status.version.name
+                    if hasattr(server_status.version, 'protocol'):
+                        status.protocol = server_status.version.protocol
 
-                # 提取玩家列表
-                if hasattr(server_status.players, 'sample') and server_status.players.sample:
-                    status.players_list = [player.name for player in server_status.players.sample]
-                    
-                    # 过滤假人
-                    status.players_list_filtered = self.player_filter.filter_players(status.players_list)
-                    
-                    # 如果启用了假人过滤，更新在线玩家数
-                    if plugin_config.mc_motd_filter_bots and status.players_list:
-                        # 计算假人数量
-                        bot_count = len(status.players_list) - len(status.players_list_filtered)
-                        if bot_count > 0:
-                            # 估算实际在线玩家数（考虑到sample可能不完整）
-                            if status.players_online and len(status.players_list) > 0:
-                                bot_ratio = bot_count / len(status.players_list)
-                                estimated_bots = int(status.players_online * bot_ratio)
-                                status.players_online = max(0, status.players_online - estimated_bots)
+                # 提取玩家信息
+                if hasattr(server_status, 'players'):
+                    status.players_online = server_status.players.online
+                    status.players_max = server_status.players.max
 
-            # 提取服务器图标
-            if hasattr(server_status, 'icon') and server_status.icon:
-                status.icon = server_status.icon  # 已经是base64格式
+                    # 提取玩家列表
+                    if hasattr(server_status.players, 'sample') and server_status.players.sample:
+                        status.players_list = [player.name for player in server_status.players.sample]
+                        
+                        # 过滤假人
+                        status.players_list_filtered = self.player_filter.filter_players(status.players_list)
+                        
+                        # 如果启用了假人过滤，更新在线玩家数
+                        if plugin_config.mc_motd_filter_bots and status.players_list:
+                            # 计算假人数量
+                            bot_count = len(status.players_list) - len(status.players_list_filtered)
+                            if bot_count > 0:
+                                # 估算实际在线玩家数（考虑到sample可能不完整）
+                                if status.players_online and len(status.players_list) > 0:
+                                    bot_ratio = bot_count / len(status.players_list)
+                                    estimated_bots = int(status.players_online * bot_ratio)
+                                    status.players_online = max(0, status.players_online - estimated_bots)
 
-            logger.success(f"成功查询服务器: {ip_port} - 延迟: {status.latency}ms, 玩家: {status.players_online or 0}")
+                # 提取服务器图标
+                if hasattr(server_status, 'icon') and server_status.icon:
+                    status.icon = server_status.icon
+
+                logger.success(f"成功查询服务器: {ip_port} - 延迟: {status.latency}ms, 玩家: {status.players_online or 0}, 方法: {method_used}")
 
         except asyncio.TimeoutError:
             status.error_message = f"查询超时（超过{self.timeout}秒）"
