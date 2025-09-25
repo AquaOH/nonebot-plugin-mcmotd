@@ -6,47 +6,63 @@
 
 ## 配置
 
+### 权限说明
+
+管理员权限包括：
+
+- NoneBot 超级管理员 (SUPERUSERS)
+- 插件超级管理员 (MC_MOTD_SUPERUSERS)
+- 群管理员或群主（需开启群管理员权限）
+
+确保三者中有一项已经配置，否则将无法添加/删除服务器
+
+### 配置项说明
+
+在**配置管理员权限后**，以下项理论上均为可选配置项，默认值已经足够应对大多数场景
+
+| 配置项                           | 类型      | 默认值                   | 作用                                                      |
+| -------------------------------- | --------- | ------------------------ | --------------------------------------------------------- |
+| `MC_MOTD_SUPERUSERS`             | List[str] | `[]`                     | 插件超级管理员QQ号列表                                    |
+| `MC_MOTD_TIMEOUT`                | float     | `5.0`                    | 服务器查询超时时间（秒）                                  |
+| `MC_MOTD_FILTER_BOTS`            | bool      | `true`                   | 是否启用假人过滤（Carpet假人）                            |
+| `MC_MOTD_BOT_NAMES`              | List[str] | `["Anonymous Player"]`   | 假人名称列表                                              |
+| `MC_MOTD_ALLOW_PRIVATE`          | bool      | `true`                   | 允许私聊使用插件                                          |
+| `MC_MOTD_ALLOWED_GROUPS`         | List[str] | `[]`                     | 允许使用插件的群聊列表（空列表表示所有群聊都允许）        |
+| `MC_MOTD_GROUP_ADMIN_PERMISSION` | bool      | `true`                   | 是否允许群管理员执行管理操作                              |
+| `MC_MOTD_IMAGE_WIDTH`            | int       | `1000`                   | 图片宽度（像素）                                          |
+| `MC_MOTD_ITEM_HEIGHT`            | int       | `160`                    | 每个服务器项目高度（像素）                                |
+| `MC_MOTD_MARGIN`                 | int       | `30`                     | 图片边距（像素）                                          |
+| `MC_MOTD_TITLE`                  | str       | `"Minecraft 服务器状态"` | 图片标题                                                  |
+| `MC_MOTD_CUSTOM_FONT`            | str       | `""`                     | 自定义字体路径（相对/绝对，相对路径根目录为机器人根目录） |
+| `MC_MOTD_ENABLE_COMPRESSION`     | bool      | `true`                   | 是否启用图片压缩(PNG 转 Webp)                             |
+| `MC_MOTD_COMPRESSION_QUALITY`    | int       | `80`                     | 图片压缩质量（1-100 百分比）                              |
+
+### 推荐配置
+
 在 `.env` 文件中添加以下配置：
 
-### 必需配置
-
 ```env
-# 超级管理员QQ号列表（必须配置）
+# 权限管理
 MC_MOTD_SUPERUSERS=["123456789", "987654321"]
-```
 
-### 可选配置
-以下展示默认值，不填则为为该值
+# 可选配置
+# 性能优化配置
+MC_MOTD_TIMEOUT=8.0
+MC_MOTD_ENABLE_COMPRESSION=true
+MC_MOTD_COMPRESSION_QUALITY=75
 
-```env
-# 允许私聊使用插件
+# 权限控制配置（按需调整）
 MC_MOTD_ALLOW_PRIVATE=true
+MC_MOTD_GROUP_ADMIN_PERMISSION=true
+MC_MOTD_ALLOWED_GROUPS=[]
 
-# 允许使用插件的群聊列表（空列表表示所有群聊都允许）
-MC_MOTD_ALLOWED_GROUPS=["123456789"]
-
-# 查询超时时间（秒）
-MC_MOTD_TIMEOUT=5.0
-
-# 是否启用假人过滤（Carpet假人）
+# 假人过滤配置
 MC_MOTD_FILTER_BOTS=true
+MC_MOTD_BOT_NAMES=["Anonymous Player", "bot_", "fake_"]
 
-# 假人名称列表
-MC_MOTD_BOT_NAMES=["Anonymous Player"]
-
-# 图片配置
-MC_MOTD_IMAGE_WIDTH=1000
-MC_MOTD_ITEM_HEIGHT=160
-MC_MOTD_MARGIN=30
-MC_MOTD_TITLE="Minecraft 服务器状态"
-
-# 数据库路径
-MC_MOTD_DB_PATH="data/minecraft_servers.db"
-
-# 自定义字体设置（字体文件需放在 data/fonts/ 目录下）
-# 只需填写字体文件名，不含扩展名
-# 例如：字体文件为 MyFont.ttf，则配置为 MC_MOTD_CUSTOM_FONT=MyFont
-MC_MOTD_CUSTOM_FONT=MyFont
+# 外观定制（可选）
+MC_MOTD_TITLE="我的服务器状态"
+MC_MOTD_IMAGE_WIDTH=1200
 ```
 
 ## 使用
@@ -72,14 +88,13 @@ MC_MOTD_CUSTOM_FONT=MyFont
 /motd --detail
 ```
 
-
-
-### 图片示例
-
-![image-20250924031218846](https://aquaoh.oss-cn-shanghai.aliyuncs.com/post/20250924031218957.png)
-
 ## 注意事项
 
-- 必须配置超级管理员才能使用管理功能
-- 数据库文件会自动创建
-- 假人过滤仅对支持玩家列表的服务器有效
+- 必须配置管理员权限后才可使用管理功能
+- 数据库文件会自动创建在插件数据目录
+- 假人过滤/显示详细信息仅对支持玩家列表的服务器有效
+- 建议适当调整超时时间以适应网络环境
+
+## 图片示例
+
+![image-20250925170806592](https://aquaoh.oss-cn-shanghai.aliyuncs.com/post/image-20250925170806592.png)
