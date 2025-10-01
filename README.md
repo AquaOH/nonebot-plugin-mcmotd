@@ -35,7 +35,7 @@
 | `MC_MOTD_MARGIN`                 | int       | `30`                                                         | 图片边距（像素）                                          |
 | `MC_MOTD_TITLE`                  | str       | `"Minecraft 服务器状态"`                                     | 图片标题                                                  |
 | `MC_MOTD_CUSTOM_FONT`            | str       | `""`                                                         | 自定义字体路径（相对/绝对，相对路径根目录为机器人根目录） |
-| `MC_MOTD_ENABLE_COMPRESSION`     | bool      | `true`                                                       | 是否启用图片压缩(PNG 转 Webp)                             |
+| `MC_MOTD_ENABLE_COMPRESSION`     | bool      | `false`                                                      | 是否启用图片压缩(PNG 转 Webp)                             |
 | `MC_MOTD_COMPRESSION_QUALITY`    | int       | `80`                                                         | 图片压缩质量（1-100 百分比）                              |
 
 #### 假人过滤说明
@@ -55,6 +55,7 @@
 ```env
 MC_MOTD_BOT_PATTERNS=[]
 ```
+
 
 #### 推荐配置
 
@@ -78,13 +79,15 @@ MC_MOTD_ALLOWED_GROUPS=["114514"]
 
 - `/motd` - 查询所有服务器状态
 - `/motd --detail` - 显示详细信息包括玩家列表
+- `/motd help` - 显示帮助
 
 ### 管理员命令
 
 - `/motd add ip:port 标签` - 添加服务器
 - `/motd del ip:port` - 删除服务器
 - `/motd del -rf` - 删除所有服务器
-- `/motd help` - 显示帮助
+- `/motd render allocate ip:port 位置` - 调整服务器显示顺序
+- `/motd render swap ip1:port ip2:port` - 交换两个服务器顺序
 
 ### 示例
 
@@ -92,6 +95,8 @@ MC_MOTD_ALLOWED_GROUPS=["114514"]
 /motd add hypixel.net Hypixel服务器
 /motd add play.example.com:25566 我的服务器
 /motd del hypixel.net
+/motd render allocate test.cn 3
+/motd render swap test.cn foobar.cn
 /motd --detail
 ```
 
@@ -101,7 +106,9 @@ MC_MOTD_ALLOWED_GROUPS=["114514"]
 - 数据库文件会自动创建在插件数据目录
 - 假人过滤/显示详细信息仅对支持玩家列表的服务器有效
 - 建议适当调整超时时间以适应网络环境
+- 添加服务器时自动排在列表末尾，删除服务器后顺序自动调整
 
 ## 图片示例
 
 ![image-20250925170806592](https://aquaoh.oss-cn-shanghai.aliyuncs.com/post/image-20250925170806592.png)
+

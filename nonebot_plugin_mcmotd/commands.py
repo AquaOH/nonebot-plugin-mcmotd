@@ -6,7 +6,7 @@ from nonebot.exception import FinishedException
 
 from .config import plugin_config
 from .permission import is_admin
-from .manager_ip import add_server, delete_server, clear_all_servers
+from .manager_ip import add_server, delete_server, clear_all_servers, allocate_server_order, swap_server_order
 from .get_motd import query_all_servers
 from .draw_pic import draw_server_list
 
@@ -24,15 +24,19 @@ HELP_TEXT = (
     "用户命令（任何人可用）：\n"
     "/motd - 查询所有服务器状态\n"
     "/motd --detail - 显示详细信息包括玩家列表\n\n"
+    "/motd help - 显示此帮助信息\n\n"
     "管理员命令（超级管理员或群管理员）：\n"
     "/motd add ip:port 标签 - 添加服务器\n"
     "/motd del ip:port - 删除指定服务器\n"
     "/motd del -rf - 删除所有服务器\n"
-    "/motd help - 显示此帮助信息\n\n"
+    "/motd render allocate ip:port 位置 - 调整服务器显示顺序\n"
+    "/motd render swap ip1:port ip2:port - 交换两个服务器顺序\n"
     "示例：\n"
     "/motd add hypixel.net Hypixel服务器\n"
     "/motd add play.example.com:25566 我的服务器\n"
-    "/motd del hypixel.net"
+    "/motd del hypixel.net\n"
+    "/motd render allocate test.cn 3\n"
+    "/motd render swap test.cn foobar.cn"
 )
 
 def check_chat_permission(event: Event) -> bool:
@@ -71,6 +75,19 @@ async def handle_manage(event: Event, args: Message = CommandArg()):
             return
         
         action = parts[0].lower()
+        
+        if action == "render" and len(parts) > 1:
+            if not is_admin(event):
+                await manage_matcher.finish(PERMISSION_DENIED_MSG.format(user_id=event.user_id))
+            
+            render_action = parts[1].lower()
+            if render_action == "allocate":
+                await handle_allocate_order(parts[2:])
+            elif render_action == "swap":
+                await handle_swap_order(parts[2:])
+            else:
+                await manage_matcher.finish(f"未知渲染命令: {render_action}\n使用 /motd help 查看帮助。")
+            return
         
         if not is_admin(event):
             await manage_matcher.finish(PERMISSION_DENIED_MSG.format(user_id=event.user_id))
@@ -129,6 +146,37 @@ async def handle_delete_server(parts):
         if success:
             logger.warning(f"管理员删除了服务器: {ip_port}")
         await manage_matcher.finish(result_msg)
+
+async def handle_allocate_order(parts):
+    if len(parts) < 2:
+        await manage_matcher.finish("格式错误。正确格式：/motd render allocate ip:port 位置")
+    
+    ip_port = parts[0]
+    try:
+        target_position = int(parts[1])
+    except ValueError:
+        await manage_matcher.finish("位置必须是数字")
+    
+    success, message = await allocate_server_order(ip_port, target_position)
+    if success:
+        logger.info(f"管理员调整服务器顺序: {ip_port} -> 位置 {target_position}")
+        await manage_matcher.finish(f"✅ {message}")
+    else:
+        await manage_matcher.finish(f"❌ {message}")
+
+async def handle_swap_order(parts):
+    if len(parts) < 2:
+        await manage_matcher.finish("格式错误。正确格式：/motd render swap ip1:port ip2:port")
+    
+    ip_port_a = parts[0]
+    ip_port_b = parts[1]
+    
+    success, message = await swap_server_order(ip_port_a, ip_port_b)
+    if success:
+        logger.info(f"管理员交换服务器顺序: {ip_port_a} <-> {ip_port_b}")
+        await manage_matcher.finish(f"✅ {message}")
+    else:
+        await manage_matcher.finish(f"❌ {message}")
 
 async def handle_query_logic(event: Event, show_detail: bool):
     try:

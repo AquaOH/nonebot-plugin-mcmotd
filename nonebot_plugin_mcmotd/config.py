@@ -25,7 +25,7 @@ class Config(BaseModel):
     mc_motd_group_admin_permission: bool = True
     mc_motd_title: str = "Minecraft 服务器状态"
     mc_motd_custom_font: str = ""
-    mc_motd_enable_compression: bool = True
+    mc_motd_enable_compression: bool = False
     mc_motd_compression_quality: int = Field(80, ge=1, le=100)
 
 plugin_config = get_plugin_config(Config)
