@@ -10,6 +10,13 @@ class Config(BaseModel):
     mc_motd_timeout: float = Field(5.0, gt=0)
     mc_motd_filter_bots: bool = True
     mc_motd_bot_names: List[str] = ["Anonymous Player"]
+    mc_motd_bot_patterns: List[str] = [
+        r"^player_\d+$",
+        r"^bot_\d+$",
+        r"^fake_\d+$",
+        r"^\[Bot\]",
+        r"^\[Fake\]"
+    ]
     mc_motd_image_width: int = Field(1000, ge=400)
     mc_motd_item_height: int = Field(160, ge=100)
     mc_motd_margin: int = Field(30, ge=10)

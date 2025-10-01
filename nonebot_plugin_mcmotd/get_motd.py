@@ -58,6 +58,7 @@ class PlayerFilter:
     def __init__(self):
         self.bot_names = set(plugin_config.mc_motd_bot_names)
         self.filter_enabled = plugin_config.mc_motd_filter_bots
+        self.bot_patterns = plugin_config.mc_motd_bot_patterns
         
     def is_bot_player(self, player_name: str) -> bool:
         if not self.filter_enabled:
@@ -65,18 +66,17 @@ class PlayerFilter:
             
         if player_name in self.bot_names:
             return True
-            
-        carpet_patterns = [
-            r'^player_\d+$',
-            r'^bot_',
-            r'^fake_',
-            r'_bot$',
-            r'_fake$',
-        ]
         
-        for pattern in carpet_patterns:
-            if re.match(pattern, player_name, re.IGNORECASE):
-                return True
+        if not self.bot_patterns:
+            return False
+        
+        for pattern in self.bot_patterns:
+            try:
+                if re.match(pattern, player_name, re.IGNORECASE):
+                    return True
+            except re.error as e:
+                logger.warning(f"正则表达式错误: {pattern}, 错误: {e}")
+                continue
                 
         return False
     

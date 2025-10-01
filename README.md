@@ -20,24 +20,45 @@
 
 在**配置管理员权限后**，以下项理论上均为可选配置项，默认值已经足够应对大多数场景
 
-| 配置项                           | 类型      | 默认值                   | 作用                                                      |
-| -------------------------------- | --------- | ------------------------ | --------------------------------------------------------- |
-| `MC_MOTD_SUPERUSERS`             | List[str] | `[]`                     | 插件超级管理员QQ号列表                                    |
-| `MC_MOTD_TIMEOUT`                | float     | `5.0`                    | 服务器查询超时时间（秒）                                  |
-| `MC_MOTD_FILTER_BOTS`            | bool      | `true`                   | 是否启用假人过滤（Carpet假人）                            |
-| `MC_MOTD_BOT_NAMES`              | List[str] | `["Anonymous Player"]`   | 假人名称列表                                              |
-| `MC_MOTD_ALLOW_PRIVATE`          | bool      | `true`                   | 允许私聊使用插件                                          |
-| `MC_MOTD_ALLOWED_GROUPS`         | List[str] | `[]`                     | 允许使用插件的群聊列表（空列表表示所有群聊都允许）        |
-| `MC_MOTD_GROUP_ADMIN_PERMISSION` | bool      | `true`                   | 是否允许群管理员执行管理操作                              |
-| `MC_MOTD_IMAGE_WIDTH`            | int       | `1000`                   | 图片宽度（像素）                                          |
-| `MC_MOTD_ITEM_HEIGHT`            | int       | `160`                    | 每个服务器项目高度（像素）                                |
-| `MC_MOTD_MARGIN`                 | int       | `30`                     | 图片边距（像素）                                          |
-| `MC_MOTD_TITLE`                  | str       | `"Minecraft 服务器状态"` | 图片标题                                                  |
-| `MC_MOTD_CUSTOM_FONT`            | str       | `""`                     | 自定义字体路径（相对/绝对，相对路径根目录为机器人根目录） |
-| `MC_MOTD_ENABLE_COMPRESSION`     | bool      | `true`                   | 是否启用图片压缩(PNG 转 Webp)                             |
-| `MC_MOTD_COMPRESSION_QUALITY`    | int       | `80`                     | 图片压缩质量（1-100 百分比）                              |
+| 配置项                           | 类型      | 默认值                                                       | 作用                                                      |
+| -------------------------------- | --------- | ------------------------------------------------------------ | --------------------------------------------------------- |
+| `MC_MOTD_SUPERUSERS`             | List[str] | `[]`                                                         | 插件超级管理员QQ号列表                                    |
+| `MC_MOTD_TIMEOUT`                | float     | `5.0`                                                        | 服务器查询超时时间（秒）                                  |
+| `MC_MOTD_FILTER_BOTS`            | bool      | `true`                                                       | 是否启用假人过滤                                          |
+| `MC_MOTD_BOT_NAMES`              | List[str] | `["Anonymous Player"]`                                       | 假人名称列表（精确匹配）                                  |
+| `MC_MOTD_BOT_PATTERNS`           | List[str] | `["^player_\\d+$", "^bot_\\d+$", "^fake_\\d+$", "^\\[Bot\\]", "^\\[Fake\\]"]` | 假人正则表达式列表（设为 `[]` 则不使用正则匹配）          |
+| `MC_MOTD_ALLOW_PRIVATE`          | bool      | `true`                                                       | 允许私聊使用插件                                          |
+| `MC_MOTD_ALLOWED_GROUPS`         | List[str] | `[]`                                                         | 允许使用插件的群聊列表（空列表表示所有群聊都允许）        |
+| `MC_MOTD_GROUP_ADMIN_PERMISSION` | bool      | `true`                                                       | 是否允许群管理员执行管理操作                              |
+| `MC_MOTD_IMAGE_WIDTH`            | int       | `1000`                                                       | 图片宽度（像素）                                          |
+| `MC_MOTD_ITEM_HEIGHT`            | int       | `160`                                                        | 每个服务器项目高度（像素）                                |
+| `MC_MOTD_MARGIN`                 | int       | `30`                                                         | 图片边距（像素）                                          |
+| `MC_MOTD_TITLE`                  | str       | `"Minecraft 服务器状态"`                                     | 图片标题                                                  |
+| `MC_MOTD_CUSTOM_FONT`            | str       | `""`                                                         | 自定义字体路径（相对/绝对，相对路径根目录为机器人根目录） |
+| `MC_MOTD_ENABLE_COMPRESSION`     | bool      | `true`                                                       | 是否启用图片压缩(PNG 转 Webp)                             |
+| `MC_MOTD_COMPRESSION_QUALITY`    | int       | `80`                                                         | 图片压缩质量（1-100 百分比）                              |
 
-### 推荐配置
+#### 假人过滤说明
+
+假人过滤功能通过两种方式识别：
+
+1. **精确名称匹配** (`MC_MOTD_BOT_NAMES`)：完全匹配玩家名称
+2. **正则表达式匹配** (`MC_MOTD_BOT_PATTERNS`)：使用正则表达式模式匹配
+
+默认正则规则会匹配：
+- `player_123`、`player_456` 等
+- `bot_789`、`bot_001` 等
+- `fake_111`、`fake_222` 等
+- `[Bot]xxx`、`[Fake]xxx` 等带标签的假人
+
+如需关闭正则匹配但保留名称匹配，可设置：
+```env
+MC_MOTD_BOT_PATTERNS=[]
+```
+
+#### 推荐配置
+
+由于默认值已足够覆盖使用场景，推荐只需要配置权限管理即可
 
 在 `.env` 文件中添加以下配置：
 
@@ -45,24 +66,10 @@
 # 权限管理
 MC_MOTD_SUPERUSERS=["123456789", "987654321"]
 
-# 可选配置
-# 性能优化配置
-MC_MOTD_TIMEOUT=8.0
-MC_MOTD_ENABLE_COMPRESSION=true
-MC_MOTD_COMPRESSION_QUALITY=75
-
 # 权限控制配置（按需调整）
 MC_MOTD_ALLOW_PRIVATE=true
 MC_MOTD_GROUP_ADMIN_PERMISSION=true
-MC_MOTD_ALLOWED_GROUPS=[]
-
-# 假人过滤配置
-MC_MOTD_FILTER_BOTS=true
-MC_MOTD_BOT_NAMES=["Anonymous Player", "bot_", "fake_"]
-
-# 外观定制（可选）
-MC_MOTD_TITLE="我的服务器状态"
-MC_MOTD_IMAGE_WIDTH=1200
+MC_MOTD_ALLOWED_GROUPS=["114514"]
 ```
 
 ## 使用

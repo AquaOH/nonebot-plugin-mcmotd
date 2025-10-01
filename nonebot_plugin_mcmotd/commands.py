@@ -49,11 +49,14 @@ manage_matcher = on_command("motd", priority=10, block=True)
 @manage_matcher.handle()
 async def handle_manage(event: Event, args: Message = CommandArg()):
     try:
+        args_text = args.extract_plain_text().strip()
+        
+        if args_text == "help" or (args_text and args_text.split()[0].lower() == "help"):
+            await manage_matcher.finish(HELP_TEXT)
+        
         if not check_chat_permission(event):
             return
 
-        args_text = args.extract_plain_text().strip()
-        
         if not args_text:
             await handle_query_logic(event, False)
             return
@@ -68,9 +71,6 @@ async def handle_manage(event: Event, args: Message = CommandArg()):
             return
         
         action = parts[0].lower()
-        
-        if action == "help":
-            await manage_matcher.finish(HELP_TEXT)
         
         if not is_admin(event):
             await manage_matcher.finish(PERMISSION_DENIED_MSG.format(user_id=event.user_id))
