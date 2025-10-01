@@ -2,7 +2,7 @@ from nonebot.plugin import PluginMetadata
 
 from .config import Config
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 __plugin_meta__ = PluginMetadata(
     name="Minecraft MOTD 查询",
