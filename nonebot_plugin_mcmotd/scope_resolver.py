@@ -96,7 +96,9 @@ class ScopeResolver:
                 return f"private_temp_{user_id}"
     
     def get_scope_display_name(self, scope: str) -> str:
-        if scope == "global":
+        if scope == "all":
+            return "所有作用域"
+        elif scope == "global":
             return "全局"
         elif scope.startswith("group_"):
             group_id = scope.replace("group_", "")

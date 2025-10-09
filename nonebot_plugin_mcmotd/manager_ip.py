@@ -318,6 +318,20 @@ class ServerManager:
             logger.error(f"交换服务器顺序失败：{e}")
             return False, f"交换服务器顺序失败：{str(e)}"
 
+    async def get_all_existing_scopes(self) -> List[str]:
+        try:
+            await self.init_database()
+            
+            async with aiosqlite.connect(self.db_path) as db:
+                async with db.execute(
+                    "SELECT DISTINCT scope FROM minecraft_servers ORDER BY scope"
+                ) as cursor:
+                    rows = await cursor.fetchall()
+                    return [row[0] for row in rows]
+        except Exception as e:
+            logger.error(f"获取作用域列表失败：{e}")
+            return []
+
 server_manager = ServerManager()
 
 async def add_server(ip_port: str, tag: str, scope: str = "global") -> tuple[bool, str]:
@@ -343,3 +357,6 @@ async def swap_server_order(ip_port_a: str, ip_port_b: str, scope: str = "global
 
 async def get_server_count(scope: str = "global") -> int:
     return await server_manager.get_server_count(scope)
+
+async def get_all_existing_scopes() -> List[str]:
+    return await server_manager.get_all_existing_scopes()

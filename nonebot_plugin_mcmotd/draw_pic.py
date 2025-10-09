@@ -268,13 +268,17 @@ class ServerListDrawer:
 
         return icon
 
-    def draw_header(self, draw: ImageDraw.Draw, stats: dict):
+    def draw_header(self, draw: ImageDraw.Draw, stats: dict, scope: str = "global"):
         header_rect = (0, 0, self.width, self.header_height)
         self.draw_rounded_rectangle_with_shadow(draw, header_rect, self.corner_radius,
                                                 self.colors['header_bg'],
                                                 self.colors['shadow'] + '40')
 
-        title = plugin_config.mc_motd_title
+        if scope == "all":
+            title = plugin_config.mc_motd_title
+        else:
+            title = plugin_config.mc_motd_scope_titles.get(scope, plugin_config.mc_motd_title)
+        
         try:
             title_bbox = draw.textbbox((0, 0), title, font=self.fonts['title'])
             title_width = title_bbox[2] - title_bbox[0]
@@ -482,7 +486,7 @@ class ServerListDrawer:
 
         return self.compress_image(image)
 
-    async def draw_server_list(self, server_statuses: List[ServerStatus], show_detail: bool = False) -> Optional[bytes]:
+    async def draw_server_list(self, server_statuses: List[ServerStatus], show_detail: bool = False, scope: str = "global") -> Optional[bytes]:
         try:
             if not server_statuses:
                 logger.info("没有服务器数据，生成空状态图片")
@@ -508,7 +512,7 @@ class ServerListDrawer:
             draw = ImageDraw.Draw(image)
 
             stats = get_summary_stats(server_statuses)
-            self.draw_header(draw, stats)
+            self.draw_header(draw, stats, scope)
 
             current_y = self.header_height + self.margin * 2
             for index, status in enumerate(server_statuses):
@@ -530,5 +534,5 @@ class ServerListDrawer:
 
 drawer = ServerListDrawer()
 
-async def draw_server_list(server_statuses: List[ServerStatus], show_detail: bool = False) -> Optional[bytes]:
-    return await drawer.draw_server_list(server_statuses, show_detail)
+async def draw_server_list(server_statuses: List[ServerStatus], show_detail: bool = False, scope: str = "global") -> Optional[bytes]:
+    return await drawer.draw_server_list(server_statuses, show_detail, scope)

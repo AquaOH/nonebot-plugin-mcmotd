@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Dict
 from nonebot import get_plugin_config, require
 
@@ -35,6 +35,15 @@ class Config(BaseModel):
     mc_motd_track_user_activity: bool = True
     mc_motd_follow_group_fallback: str = "personal"
     mc_motd_personal_server_limit: int = 10
+    
+    mc_motd_scope_titles: Dict[str, str] = {}
+
+    @field_validator('mc_motd_group_clusters')
+    @classmethod
+    def validate_no_all_cluster(cls, v):
+        if 'all' in v:
+            raise ValueError("Scope name 'all' is reserved and cannot be used in mc_motd_group_clusters")
+        return v
 
 plugin_config = get_plugin_config(Config)
 plugin_data_dir = store.get_plugin_data_dir()

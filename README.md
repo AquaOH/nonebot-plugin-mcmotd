@@ -1,8 +1,12 @@
+[TOC]
+
 # Minecraft MOTD 插件
 
 用于查询一系列 Minecraft 服务器状态并生成在一张图片上的 NoneBot 插件。支持多群聊隔离、私聊策略配置等高级功能。
 
 思路参考自 [lgc-NB2Dev/nonebot-plugin-picmcstat](https://github.com/lgc-NB2Dev/nonebot-plugin-picmcstat)
+
+
 
 ## 工作模式
 
@@ -24,6 +28,7 @@ graph TD
     D --> D4[个人列表]
     D --> D5[动态策略]
 ```
+
 
 ### 传统模式（默认）
 
@@ -50,8 +55,7 @@ graph TD
     
     B --> B1[NoneBot 超级管理员<br/>SUPERUSERS]
     B --> B2[插件超级管理员<br/>MC_MOTD_SUPERUSERS]
-
-    
+    B --> B3[跨作用域操作权限]
 
     C --> C2{MC_MOTD_GROUP_ADMIN_PERMISSION}
     C2 -->|true| C3[管理本群服务器列表]
@@ -74,7 +78,7 @@ graph TD
 
 权限规则：
 
-- **超级管理员**：管理所有作用域的服务器
+- **超级管理员**：管理所有作用域的服务器，可使用跨作用域命令
 - **群管理员**：只能管理所在群的服务器列表
 - **普通用户**：在 personal 模式下可管理自己的个人列表
 
@@ -98,7 +102,7 @@ graph TD
 | 配置项                                | 类型            | 默认值           | 作用                                                         |
 | ------------------------------------- | --------------- | ---------------- | ------------------------------------------------------------ |
 | `MC_MOTD_MULTI_GROUP_MODE`            | bool            | `false`          | 是否启用多群聊隔离模式                                       |
-| `MC_MOTD_GROUP_CLUSTERS`              | Dict[str, List] | `{}`             | 群聊分组配置，同组群共享服务器列表<br />格式：`{"组名": ["群号1", "群号2"]}`<br />留空则每个群都是独立的作用域，各群的服务器列表互不影响。 |
+| `MC_MOTD_GROUP_CLUSTERS`              | Dict[str, List] | `{}`             | 群聊分组配置，同组群共享服务器列表<br />格式：`{"组名": ["群号1", "群号2"]}`<br />留空则每个群都是独立的作用域，各群的服务器列表互不影响<br />**注意**：组名不能使用保留字 `all` |
 | `MC_MOTD_PRIVATE_FRIEND_STRATEGY`     | str             | `"personal"`     | 好友私聊策略：`disabled`/`global`/`personal`                 |
 | `MC_MOTD_PRIVATE_GROUP_TEMP_STRATEGY` | str             | `"follow_group"` | 群临时会话策略：`disabled`/`global`/`personal`/`follow_group` |
 | `MC_MOTD_TRACK_USER_ACTIVITY`         | bool            | `true`           | 是否追踪用户活跃群（用于 follow_group 策略）                 |
@@ -130,15 +134,16 @@ flowchart TD
 
 ### 图片渲染配置
 
-| 配置项                        | 类型 | 默认值                   | 作用                                                      |
-| ----------------------------- | ---- | ------------------------ | --------------------------------------------------------- |
-| `MC_MOTD_IMAGE_WIDTH`         | int  | `1000`                   | 图片宽度（像素）                                          |
-| `MC_MOTD_ITEM_HEIGHT`         | int  | `160`                    | 每个服务器项目高度（像素）                                |
-| `MC_MOTD_MARGIN`              | int  | `30`                     | 图片边距（像素）                                          |
-| `MC_MOTD_TITLE`               | str  | `"Minecraft 服务器状态"` | 图片标题                                                  |
-| `MC_MOTD_CUSTOM_FONT`         | str  | `""`                     | 自定义字体路径（相对/绝对，相对路径根目录为机器人根目录） |
-| `MC_MOTD_ENABLE_COMPRESSION`  | bool | `false`                  | 是否启用图片压缩(PNG 转 WebP)                             |
-| `MC_MOTD_COMPRESSION_QUALITY` | int  | `80`                     | 图片压缩质量（1-100 百分比）                              |
+| 配置项                        | 类型           | 默认值                   | 作用                                                         |
+| ----------------------------- | -------------- | ------------------------ | ------------------------------------------------------------ |
+| `MC_MOTD_IMAGE_WIDTH`         | int            | `1000`                   | 图片宽度（像素）                                             |
+| `MC_MOTD_ITEM_HEIGHT`         | int            | `160`                    | 每个服务器项目高度（像素）                                   |
+| `MC_MOTD_MARGIN`              | int            | `30`                     | 图片边距（像素）                                             |
+| `MC_MOTD_TITLE`               | str            | `"Minecraft 服务器状态"` | 图片默认标题                                                 |
+| `MC_MOTD_SCOPE_TITLES`        | Dict[str, str] | `{}`                     | 自定义作用域标题<br />格式：`{"scope": "标题"}`<br />未配置的作用域使用 MC_MOTD_TITLE |
+| `MC_MOTD_CUSTOM_FONT`         | str            | `""`                     | 自定义字体路径（相对/绝对，相对路径根目录为机器人根目录）    |
+| `MC_MOTD_ENABLE_COMPRESSION`  | bool           | `false`                  | 是否启用图片压缩(PNG 转 WebP)                                |
+| `MC_MOTD_COMPRESSION_QUALITY` | int            | `80`                     | 图片压缩质量（1-100 百分比）                                 |
 
 ### 配置示例
 
@@ -151,7 +156,7 @@ MC_MOTD_SUPERUSERS=["123456789", "987654321"]
 # 权限控制
 MC_MOTD_ALLOW_PRIVATE=true
 MC_MOTD_GROUP_ADMIN_PERMISSION=true
-MC_MOTD_ALLOWED_GROUPS=["114514"] # 遗留配置，实现在传统模式下实现简单的过滤群聊
+MC_MOTD_ALLOWED_GROUPS=["114514"]
 ```
 
 #### 多群聊隔离模式 - 完全隔离
@@ -161,7 +166,7 @@ MC_MOTD_ALLOWED_GROUPS=["114514"] # 遗留配置，实现在传统模式下实�
 MC_MOTD_MULTI_GROUP_MODE=true
 
 # 群A和群B共享服务器列表
-MC_MOTD_GROUP_CLUSTERS='{"cluster_a": ["123456789", "987654321"]}' # 虽然组名可以自定义，但是我推荐你使用cluster_xxxx的命名方式
+MC_MOTD_GROUP_CLUSTERS='{"cluster_a": ["123456789", "987654321"]}'
 
 # 好友私聊：每人独立列表（可自己管理，最多10个）
 MC_MOTD_PRIVATE_FRIEND_STRATEGY=personal
@@ -175,6 +180,9 @@ MC_MOTD_FOLLOW_GROUP_FALLBACK=personal
 # 权限管理
 MC_MOTD_SUPERUSERS=["123456789"]
 MC_MOTD_GROUP_ADMIN_PERMISSION=true
+
+# 自定义作用域标题
+MC_MOTD_SCOPE_TITLES='{"global": "公共服务器", "cluster_a": "朋友圈服务器", "group_114514": "测试群服务器"}'
 ```
 
 #### 多群聊隔离模式 - 简化配置
@@ -202,6 +210,8 @@ MC_MOTD_PRIVATE_GROUP_TEMP_STRATEGY=follow_group
 
 ### 管理员命令
 
+管理员命令只会应用在当前作用域，无法跨作用域
+
 | 命令                                  | 功能                   | 权限要求 |
 | ------------------------------------- | ---------------------- | -------- |
 | `/motd add ip:port 标签`              | 添加服务器             | 管理员   |
@@ -209,6 +219,54 @@ MC_MOTD_PRIVATE_GROUP_TEMP_STRATEGY=follow_group
 | `/motd del -rf`                       | 删除所有服务器         | 管理员   |
 | `/motd render allocate ip:port 位置`  | 调整服务器显示顺序     | 管理员   |
 | `/motd render swap ip1:port ip2:port` | 交换两个服务器显示顺序 | 管理员   |
+
+### 超级管理员专用命令
+
+```mermaid
+graph TD
+    A[跨作用域命令] --> B[查询命令]
+    A --> C[管理命令]
+    
+    B --> B1[/motd scope list<br>查看所有作用域/]
+    B --> B2[/motd --scope=xxx<br>查询指定作用域/]
+    B --> B3[/motd --scope=all<br>查询所有作用域合并/]
+    
+    C --> C1[/motd add --scope=xxx ip:port 标签<br>向指定作用域添加/]
+    C --> C2[/motd del --scope=xxx ip:port<br>从指定作用域删除/]
+    C --> C3[/motd add --scope=all ip:port 标签<br>向所有作用域批量添加/]
+    C --> C4[/motd del --scope=all -rf<br>删除所有作用域的所有服务器/]
+```
+
+#### 跨作用域命令说明
+
+特殊的`scope`有`global`和`all`，在传统模式下的数据默认储存在`global`作用域
+
+| 命令                                        | 功能                               | 说明                             |
+| ------------------------------------------- | ---------------------------------- | -------------------------------- |
+| `/motd scope list`                          | 列出所有存在服务器的作用域         | 显示作用域名称和友好名称         |
+| `/motd --scope=xxx`                         | 查询指定作用域的服务器             | 使用作用域自定义标题（如已配置） |
+| `/motd --scope=all`                         | 查询所有作用域的服务器（合并显示） | 使用默认标题 MC_MOTD_TITLE       |
+| `/motd --scope=xxx add ip:port 标签`        | 向指定作用域添加服务器             | 支持任意作用域名称               |
+| `/motd --scope=all add ip:port 标签`        | 向所有现有作用域批量添加服务器     | 对每个作用域执行添加操作         |
+| `/motd --scope=xxx del ip:port`             | 从指定作用域删除服务器             | 仅影响指定作用域                 |
+| `/motd --scope=all del ip:port`             | 从所有作用域删除指定服务器         | 批量删除操作                     |
+| `/motd --scope=xxx del -rf`                 | 清空指定作用域的所有服务器         | 危险操作，需要 -rf 参数确认      |
+| `/motd --scope=all del -rf`                 | 清空所有作用域的所有服务器         | 极度危险操作，需要 -rf 参数确认  |
+| `/motd --scope=xxx render allocate ip 位置` | 调整指定作用域内的服务器顺序       | 跨作用域调整顺序                 |
+| `/motd --scope=xxx render swap ip1 ip2`     | 交换指定作用域内两个服务器的顺序   | 跨作用域交换顺序                 |
+
+#### scope 参数位置
+
+`--scope` 参数支持灵活放置：
+
+```bash
+# 以下格式都支持
+/motd --scope=group_123456 add mc.hypixel.net Hypixel
+/motd add --scope=group_123456 mc.hypixel.net Hypixel
+
+/motd --scope=all
+/motd --scope=global del -rf
+```
 
 ### 使用示例
 
@@ -273,6 +331,40 @@ MC_MOTD_PRIVATE_GROUP_TEMP_STRATEGY=follow_group
 # 显示群B的服务器列表
 ```
 
+**超级管理员跨作用域操作：**
+
+```bash
+# 查看所有作用域
+/motd scope list
+# 输出示例：
+# - global (全局)
+# - group_123456 (群 123456)
+# - cluster_friends (群组 friends)
+# - private_friend_789 (好友 789 的个人列表)
+
+# 查看指定作用域
+/motd --scope=group_123456
+/motd --scope=cluster_friends --detail
+
+# 查看所有作用域的服务器（合并显示）
+/motd --scope=all
+
+# 向指定作用域添加服务器
+/motd --scope=group_123456 add mc.hypixel.net Hypixel
+
+# 向所有作用域批量添加
+/motd --scope=all add play.example.com:25565 公共服务器
+
+# 从指定作用域删除
+/motd --scope=group_123456 del mc.hypixel.net
+
+# 清空指定作用域
+/motd --scope=group_123456 del -rf
+
+# 清空所有作用域（危险）
+/motd --scope=all del -rf
+```
+
 ## 多群聊模式说明
 
 ### 作用域（Scope）架构
@@ -284,12 +376,14 @@ graph TD
     A --> D[群组共享 cluster_xxx]
     A --> E[好友私聊 private_friend_xxx]
     A --> F[群临时会话 private_temp_xxx]
+    A --> G[特殊作用域 all]
     
     B --> B1[传统模式/全局列表<br/>示例: global]
     C --> C1[单个群独立列表<br/>示例: group_123456]
     D --> D2[多个群共享列表<br/>示例: cluster_friends]
     E --> E1[好友私聊个人列表<br/>示例: private_friend_789]
     F --> F1[临时会话个人列表<br/>示例: private_temp_789]
+    G --> G1[超级管理员专用<br/>操作所有现有作用域]
 ```
 
 ### 权限管理架构
@@ -302,10 +396,13 @@ graph TD
     
     B --> B1[管理范围: 所有作用域]
     B --> B2[SUPERUSERS + MC_MOTD_SUPERUSERS]
+    B --> B3[可使用 --scope 参数]
+    B --> B4[可使用 scope list 命令]
     
     C --> C1[管理范围: 本群作用域]
     C --> C2[group_xxx 或所属 cluster_xxx]
     C --> C3[需开启 MC_MOTD_GROUP_ADMIN_PERMISSION]
+    C --> C4[不能使用跨作用域命令]
     
     D --> D1[管理范围: 个人作用域]
     D --> D2[private_friend_xxx<br/>private_temp_xxx]
@@ -369,11 +466,33 @@ A: 使用 `MC_MOTD_GROUP_CLUSTERS` 配置，例如：
 MC_MOTD_GROUP_CLUSTERS='{"cluster_a": ["123456", "789012"]}'
 ```
 
-但是请注意，设置CLUSTERS后，原来群`"123456"`和` "789012"`设置的服务器仍然储存在各自`group_xxx`作用域内，而此时群`"123456"`和` "789012"`作用域变为`cluster_a`，此时相当于创建了一张全新的数据表。因此查询会为空白，需要重新添加服务器。
+但是请注意，设置 CLUSTERS 后，原来群 `"123456"` 和 `"789012"` 设置的服务器仍然储存在各自 `group_xxx` 作用域内，而此时群 `"123456"` 和 `"789012"` 作用域变为 `cluster_a`，此时相当于创建了一张全新的数据表。因此查询会为空白，需要重新添加服务器。
+
+**Q: 如何为不同作用域设置不同的标题？**
+
+A: 使用 `MC_MOTD_SCOPE_TITLES` 配置：
+
+```env
+MC_MOTD_SCOPE_TITLES='{"global": "公共服务器", "cluster_main": "主服务器集群", "group_123456": "测试群"}'
+```
+
+未配置的作用域会使用 `MC_MOTD_TITLE` 作为默认标题。
+
+**Q: --scope=all 是什么？**
+
+A: `all` 是超级管理员专用的特殊作用域标识符，用于操作所有现有作用域：
+
+- 查询时：合并显示所有作用域的服务器
+- 添加时：向所有作用域批量添加服务器
+- 删除时：从所有作用域批量删除服务器
+
+**Q: 为什么不能创建名为 "all" 的群组？**
+
+A: `all` 是系统保留字，用于超级管理员的跨作用域操作。尝试在 `MC_MOTD_GROUP_CLUSTERS` 中使用 `all` 作为群组名会导致启动失败。
 
 **Q: 如何设置命令前缀和参数分隔？**
 
-A: 读取的是Nonebot全局配置，推荐项如下：
+A: 读取的是 Nonebot 全局配置，推荐项如下：
 
 ```env
 COMMAND_START=["/"]
@@ -389,8 +508,10 @@ COMMAND_SEP=[" "]
 - 建议适当调整超时时间以适应网络环境
 - 添加服务器时自动排在列表末尾，删除服务器后顺序自动调整
 - 群临时会话使用 follow_group 策略需要用户在群内有发言记录
+- `MC_MOTD_GROUP_CLUSTERS` 配置中不能使用保留字 `all` 作为群组名
+- 跨作用域命令（`--scope` 参数）仅超级管理员可用
+- `--scope=all` 操作会影响所有现有作用域，使用时需谨慎
 
 ## 图片示例
 
 ![示例图片](https://aquaoh.oss-cn-shanghai.aliyuncs.com/post/image-20250925170806592.png)
-
