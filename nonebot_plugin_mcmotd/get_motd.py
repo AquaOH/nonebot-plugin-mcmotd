@@ -403,3 +403,50 @@ def get_summary_stats(statuses: List[ServerStatus]) -> Dict[str, Any]:
         "bots_filtered": total_bots_filtered,
         "filter_enabled": plugin_config.mc_motd_filter_bots
     }
+
+async def query_all_servers_by_scope(scope: str = "global") -> List[ServerStatus]:
+    logger.info(f"开始查询作用域 {scope} 的服务器状态")
+
+    try:
+        from .manager_ip import get_all_servers
+        servers = await get_all_servers(scope)
+
+        if not servers:
+            logger.info(f"作用域 {scope} 中没有保存的服务器")
+            return []
+
+        logger.info(f"在作用域 {scope} 中找到 {len(servers)} 个服务器，开始并发查询")
+
+        tasks = []
+        for server in servers:
+            task = motd_query.query_server(server.ip_port, server.tag)
+            tasks.append(task)
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        server_statuses = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                server = servers[i]
+                status = ServerStatus(
+                    ip_port=server.ip_port,
+                    tag=server.tag,
+                    is_online=False,
+                    error_message=f"查询异常: {str(result)}"
+                )
+                server_statuses.append(status)
+                logger.error(f"查询服务器 {server.ip_port} 时发生异常: {result}")
+            else:
+                server_statuses.append(result)
+
+        online_count = sum(1 for status in server_statuses if status.is_online)
+        total_count = len(server_statuses)
+        total_players = sum(status.players_online or 0 for status in server_statuses if status.is_online)
+
+        logger.success(f"作用域 {scope} 查询完成: {online_count}/{total_count} 个服务器在线，总玩家数: {total_players}")
+
+        return server_statuses
+
+    except Exception as e:
+        logger.error(f"查询作用域 {scope} 的服务器时发生错误: {e}")
+        return []

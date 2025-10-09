@@ -27,23 +27,61 @@ def is_superuser(event: Event) -> bool:
         return False
     
     if user_id in nonebot_superusers:
-        logger.info(f"NoneBot超级管理员 {user_id} 执行管理操作")
+        logger.debug(f"NoneBot超级管理员 {user_id} 执行管理操作")
         return True
     
     plugin_superusers = plugin_config.mc_motd_superusers
-    
     if user_id in plugin_superusers:
-        logger.info(f"插件超级管理员 {user_id} 执行管理操作")
+        logger.debug(f"插件超级管理员 {user_id} 执行管理操作")
         return True
     
     return False
 
-def is_admin(event: Event) -> bool:
+def can_self_manage_personal_scope(event: Event, scope: str) -> bool:
+    if not isinstance(event, PrivateMessageEvent):
+        return False
+    
+    user_id = str(event.user_id)
+    
+    if scope == f"private_friend_{user_id}":
+        logger.info(f"用户 {user_id} 管理自己的好友私聊服务器列表")
+        return True
+    
+    if scope == f"private_temp_{user_id}":
+        logger.info(f"用户 {user_id} 管理自己的临时会话服务器列表")
+        return True
+    
+    return False
+
+def is_admin(event: Event, scope: str = "global") -> bool:
     if is_superuser(event):
         return True
     
-    if is_group_admin(event):
-        logger.info(f"群管理员 {event.user_id} 执行管理操作")
-        return True
+    if plugin_config.mc_motd_multi_group_mode:
+        if isinstance(event, GroupMessageEvent):
+            group_id = str(event.group_id)
+            
+            if scope == f"group_{group_id}":
+                if is_group_admin(event):
+                    logger.info(f"群管理员 {event.user_id} 管理群 {group_id} 的服务器")
+                    return True
+            
+            if scope.startswith("cluster_"):
+                cluster_name = scope.replace("cluster_", "")
+                cluster_groups = plugin_config.mc_motd_group_clusters.get(cluster_name, [])
+                
+                if group_id in cluster_groups:
+                    if is_group_admin(event):
+                        logger.info(f"群管理员 {event.user_id} 管理群组 {cluster_name} 的服务器")
+                        return True
+        
+        if isinstance(event, PrivateMessageEvent):
+            if can_self_manage_personal_scope(event, scope):
+                return True
+    
+    else:
+        if is_group_admin(event):
+            logger.info(f"群管理员 {event.user_id} 执行管理操作（传统模式）")
+            return True
     
     return False

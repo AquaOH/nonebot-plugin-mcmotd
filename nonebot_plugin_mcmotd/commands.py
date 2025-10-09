@@ -6,17 +6,20 @@ from nonebot.exception import FinishedException
 
 from .config import plugin_config
 from .permission import is_admin
+from .scope_resolver import scope_resolver
 from .manager_ip import add_server, delete_server, clear_all_servers, allocate_server_order, swap_server_order
-from .get_motd import query_all_servers
+from .get_motd import query_all_servers_by_scope
 from .draw_pic import draw_server_list
 
 PERMISSION_DENIED_MSG = (
     "权限不足，仅管理员可执行管理操作。\n"
     "当前用户: {user_id}\n"
+    "当前作用域: {scope_name}\n\n"
     "管理员权限包括：\n"
     "- NoneBot 超级管理员 (SUPERUSERS)\n"
     "- 插件超级管理员 (MC_MOTD_SUPERUSERS)\n"
-    "- 群管理员或群主 (需开启群管理员权限)"
+    "- 群管理员或群主 (需开启群管理员权限)\n"
+    "- 个人列表模式下的用户本人"
 )
 
 HELP_TEXT = (
@@ -39,7 +42,31 @@ HELP_TEXT = (
     "/motd render swap test.cn foobar.cn"
 )
 
+HELP_TEXT_PERSONAL = (
+    "📱 个人服务器列表使用帮助\n\n"
+    "你正在使用个人服务器列表模式！\n"
+    "你可以添加和管理属于自己的服务器列表。\n\n"
+    "可用命令：\n"
+    "/motd - 查询你的服务器状态\n"
+    "/motd --detail - 显示详细信息\n"
+    "/motd add ip:port 标签 - 添加服务器\n"
+    "/motd del ip:port - 删除服务器\n"
+    "/motd del -rf - 清空所有服务器\n"
+    "/motd render allocate ip:port 位置 - 调整顺序\n"
+    "/motd render swap ip1:port ip2:port - 交换顺序\n\n"
+    "限制：\n"
+    "- 最多可添加 {limit} 个服务器{unlimited}\n\n"
+    "示例：\n"
+    "/motd add mc.hypixel.net Hypixel服务器\n"
+    "/motd add localhost:25565 我的测试服"
+)
+
+SCOPE_DISABLED_MSG = "当前场景已禁用此功能，请联系管理员配置。"
+
 def check_chat_permission(event: Event) -> bool:
+    if plugin_config.mc_motd_multi_group_mode:
+        return True
+    
     if isinstance(event, PrivateMessageEvent):
         return plugin_config.mc_motd_allow_private
     elif isinstance(event, GroupMessageEvent):
@@ -55,47 +82,67 @@ async def handle_manage(event: Event, args: Message = CommandArg()):
     try:
         args_text = args.extract_plain_text().strip()
         
+        scope = await scope_resolver.get_scope(event)
+        
+        if scope is None:
+            await manage_matcher.finish(SCOPE_DISABLED_MSG)
+        
         if args_text == "help" or (args_text and args_text.split()[0].lower() == "help"):
-            await manage_matcher.finish(HELP_TEXT)
+            user_id = str(event.user_id) if hasattr(event, 'user_id') else ""
+            is_personal = (
+                scope == f"private_friend_{user_id}" or 
+                scope == f"private_temp_{user_id}"
+            )
+            
+            if is_personal and plugin_config.mc_motd_multi_group_mode:
+                limit = plugin_config.mc_motd_personal_server_limit
+                unlimited_text = "" if limit > 0 else "（当前配置为不限制）"
+                help_text = HELP_TEXT_PERSONAL.format(
+                    limit=limit if limit > 0 else "∞",
+                    unlimited=unlimited_text
+                )
+                await manage_matcher.finish(help_text)
+            else:
+                await manage_matcher.finish(HELP_TEXT)
         
-        if not check_chat_permission(event):
-            return
-
-        if not args_text:
-            await handle_query_logic(event, False)
-            return
+        if not plugin_config.mc_motd_multi_group_mode:
+            if not check_chat_permission(event):
+                return
         
-        if args_text == "--detail":
-            await handle_query_logic(event, True)
+        if not args_text or args_text == "--detail":
+            show_detail = args_text == "--detail"
+            await handle_query_logic(event, scope, show_detail)
             return
         
         parts = args_text.split()
         if not parts:
-            await handle_query_logic(event, False)
+            await handle_query_logic(event, scope, False)
             return
         
         action = parts[0].lower()
         
         if action == "render" and len(parts) > 1:
-            if not is_admin(event):
-                await manage_matcher.finish(PERMISSION_DENIED_MSG.format(user_id=event.user_id))
+            if not is_admin(event, scope):
+                scope_name = scope_resolver.get_scope_display_name(scope)
+                await manage_matcher.finish(PERMISSION_DENIED_MSG.format(user_id=event.user_id, scope_name=scope_name))
             
             render_action = parts[1].lower()
             if render_action == "allocate":
-                await handle_allocate_order(parts[2:])
+                await handle_allocate_order(parts[2:], scope)
             elif render_action == "swap":
-                await handle_swap_order(parts[2:])
+                await handle_swap_order(parts[2:], scope)
             else:
                 await manage_matcher.finish(f"未知渲染命令: {render_action}\n使用 /motd help 查看帮助。")
             return
         
-        if not is_admin(event):
-            await manage_matcher.finish(PERMISSION_DENIED_MSG.format(user_id=event.user_id))
+        if not is_admin(event, scope):
+            scope_name = scope_resolver.get_scope_display_name(scope)
+            await manage_matcher.finish(PERMISSION_DENIED_MSG.format(user_id=event.user_id, scope_name=scope_name))
         
         if action == "add":
-            await handle_add_server(parts)
+            await handle_add_server(parts, scope)
         elif action == "del":
-            await handle_delete_server(parts)
+            await handle_delete_server(parts, scope)
         else:
             await manage_matcher.finish(f"未知命令: {action}\n使用 /motd help 查看帮助。")
 
@@ -104,7 +151,7 @@ async def handle_manage(event: Event, args: Message = CommandArg()):
     except Exception as e:
         logger.error(f"处理管理命令时发生错误: {e}")
 
-async def handle_add_server(parts):
+async def handle_add_server(parts, scope: str):
     if len(parts) < 3:
         await manage_matcher.finish("格式错误。正确格式：/motd add ip:port 服务器标签")
     
@@ -122,32 +169,40 @@ async def handle_add_server(parts):
         except ValueError:
             await manage_matcher.finish("端口号必须是数字")
     
-    success, message = await add_server(ip_port, tag)
+    success, message = await add_server(ip_port, tag, scope)
+    
     if success:
-        logger.info(f"管理员添加了服务器: {ip_port} - {tag}")
-        await manage_matcher.finish(f"✅ 已添加服务器: {tag}")
+        scope_name = scope_resolver.get_scope_display_name(scope)
+        logger.info(f"管理员添加了服务器: {ip_port} - {tag} (scope: {scope})")
+        await manage_matcher.finish(f"✅ 已添加服务器: {tag}\n作用域: {scope_name}")
     else:
-        await manage_matcher.finish("❌ 添加失败")
+        await manage_matcher.finish(f"❌ {message}")
 
-async def handle_delete_server(parts):
+async def handle_delete_server(parts, scope: str):
     if len(parts) < 2:
-        await manage_matcher.finish("格式错误。正确格式：\n/motd del ip:port - 删除指定服务器\n/motd del -rf - 删除所有服务器")
+        await manage_matcher.finish(
+            "格式错误。正确格式：\n"
+            "/motd del ip:port - 删除指定服务器\n"
+            "/motd del -rf - 删除所有服务器"
+        )
     
     if parts[1] == "-rf":
-        success, message = await clear_all_servers()
-        result_msg = "✅ 已清空所有服务器" if success else "❌ 清空失败"
+        success, message = await clear_all_servers(scope)
         if success:
-            logger.warning("管理员清空了所有服务器")
-        await manage_matcher.finish(result_msg)
+            logger.warning(f"管理员清空了作用域 {scope} 的所有服务器")
+            await manage_matcher.finish("✅ 已清空所有服务器")
+        else:
+            await manage_matcher.finish(f"❌ {message}")
     else:
         ip_port = parts[1]
-        success, message = await delete_server(ip_port)
-        result_msg = "✅ 已删除服务器" if success else "❌ 删除失败"
+        success, message = await delete_server(ip_port, scope)
         if success:
-            logger.warning(f"管理员删除了服务器: {ip_port}")
-        await manage_matcher.finish(result_msg)
+            logger.warning(f"管理员删除了服务器: {ip_port} (scope: {scope})")
+            await manage_matcher.finish("✅ 已删除服务器")
+        else:
+            await manage_matcher.finish(f"❌ {message}")
 
-async def handle_allocate_order(parts):
+async def handle_allocate_order(parts, scope: str):
     if len(parts) < 2:
         await manage_matcher.finish("格式错误。正确格式：/motd render allocate ip:port 位置")
     
@@ -157,37 +212,48 @@ async def handle_allocate_order(parts):
     except ValueError:
         await manage_matcher.finish("位置必须是数字")
     
-    success, message = await allocate_server_order(ip_port, target_position)
+    success, message = await allocate_server_order(ip_port, target_position, scope)
     if success:
-        logger.info(f"管理员调整服务器顺序: {ip_port} -> 位置 {target_position}")
+        logger.info(f"管理员调整服务器顺序: {ip_port} -> 位置 {target_position} (scope: {scope})")
         await manage_matcher.finish(f"✅ {message}")
     else:
         await manage_matcher.finish(f"❌ {message}")
 
-async def handle_swap_order(parts):
+async def handle_swap_order(parts, scope: str):
     if len(parts) < 2:
         await manage_matcher.finish("格式错误。正确格式：/motd render swap ip1:port ip2:port")
     
     ip_port_a = parts[0]
     ip_port_b = parts[1]
     
-    success, message = await swap_server_order(ip_port_a, ip_port_b)
+    success, message = await swap_server_order(ip_port_a, ip_port_b, scope)
     if success:
-        logger.info(f"管理员交换服务器顺序: {ip_port_a} <-> {ip_port_b}")
+        logger.info(f"管理员交换服务器顺序: {ip_port_a} <-> {ip_port_b} (scope: {scope})")
         await manage_matcher.finish(f"✅ {message}")
     else:
         await manage_matcher.finish(f"❌ {message}")
 
-async def handle_query_logic(event: Event, show_detail: bool):
+async def handle_query_logic(event: Event, scope: str, show_detail: bool):
     try:
-        logger.info(f"用户 {event.user_id} 请求查询服务器状态{'（详细模式）' if show_detail else ''}")
+        user_desc = f"用户 {event.user_id}"
+        if isinstance(event, GroupMessageEvent):
+            user_desc = f"群 {event.group_id} 的用户 {event.user_id}"
+        elif isinstance(event, PrivateMessageEvent):
+            user_desc = f"私聊用户 {event.user_id} ({event.sub_type})"
+        
+        scope_name = scope_resolver.get_scope_display_name(scope)
+        logger.info(f"{user_desc} 请求查询服务器状态{'（详细模式）' if show_detail else ''} - 作用域: {scope_name}")
 
         await manage_matcher.send("正在查询服务器状态，请稍候...")
         
-        server_statuses = await query_all_servers()
+        server_statuses = await query_all_servers_by_scope(scope)
         
         if not server_statuses:
-            await manage_matcher.finish("还没有添加任何服务器。\n管理员可以使用 /motd add ip:port 标签 来添加服务器。")
+            await manage_matcher.finish(
+                f"还没有添加任何服务器。\n"
+                f"当前作用域: {scope_name}\n"
+                f"管理员可以使用 /motd add ip:port 标签 来添加服务器。"
+            )
 
         image_bytes = await draw_server_list(server_statuses, show_detail=show_detail)
         

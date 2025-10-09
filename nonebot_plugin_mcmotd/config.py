@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Dict
 from nonebot import get_plugin_config, require
 
 require("nonebot_plugin_localstore")
@@ -27,6 +27,14 @@ class Config(BaseModel):
     mc_motd_custom_font: str = ""
     mc_motd_enable_compression: bool = False
     mc_motd_compression_quality: int = Field(80, ge=1, le=100)
+    
+    mc_motd_multi_group_mode: bool = False
+    mc_motd_group_clusters: Dict[str, List[str]] = {}
+    mc_motd_private_friend_strategy: str = "personal"
+    mc_motd_private_group_temp_strategy: str = "follow_group"
+    mc_motd_track_user_activity: bool = True
+    mc_motd_follow_group_fallback: str = "personal"
+    mc_motd_personal_server_limit: int = 10
 
 plugin_config = get_plugin_config(Config)
 plugin_data_dir = store.get_plugin_data_dir()
